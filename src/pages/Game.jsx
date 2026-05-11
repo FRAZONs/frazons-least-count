@@ -1,5 +1,6 @@
 import { useState } from "react";
-
+import clickSound from "../audio/click.mp3";
+import winSound from "../audio/win.mp3";
 import Confetti from "react-confetti";
 
 import PlayerCard from "../components/PlayerCard";
@@ -30,8 +31,14 @@ export default function Game({
 
   const [winner, setWinner] =
     useState(null);
+    const clickAudio =
+  new Audio(clickSound);
+
+const winAudio =
+  new Audio(winSound);
 
   const addPlayer = () => {
+    clickAudio.play();
 
     if (!playerName.trim())
       return;
@@ -83,6 +90,7 @@ export default function Game({
   };
 
   const submitRound = () => {
+    clickAudio.play();
 
     if (players.length === 0)
       return;
@@ -125,6 +133,8 @@ export default function Game({
         return {
 
           ...player,
+
+          currentScore: "",
 
           total: newTotal,
 
@@ -180,17 +190,30 @@ export default function Game({
     setPlayers(updatedPlayers);
 
     if (activePlayers.length === 1) {
-
-      setTimeout(() => {
-
-        setWinner(
-          activePlayers[0]
-        );
-
-      }, 300);
+      winAudio.play();
+      setWinner(activePlayers[0]);
     }
 
     setScores({});
+
+    setTimeout(() => {
+
+      const inputs =
+        document.querySelectorAll(
+          ".score-input"
+        );
+
+      inputs.forEach((input) => {
+
+        input.value = "";
+      });
+
+      if (inputs[0]) {
+
+        inputs[0].focus();
+      }
+
+    }, 100);
 
     setRound(round + 1);
   };
@@ -442,6 +465,8 @@ export default function Game({
 
         <button
           onClick={submitRound}
+
+          className="submit-round-btn"
 
           style={{
             width: "100%",

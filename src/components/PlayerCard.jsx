@@ -115,37 +115,91 @@ export default function PlayerCard({
       ) : (
 
         <input
-          type="number"
+  type="number"
 
-          placeholder="Round score"
+  placeholder="Round score"
 
-          onChange={(e) =>
-            updateScore(
-              player.id,
-              e.target.value
-            )
-          }
+  className="score-input"
 
-          style={{
-            width: "100%",
+  onChange={(e) => {
 
-            padding: 14,
+    updateScore(
+      player.id,
+      e.target.value
+    );
+  }}
 
-            borderRadius: 14,
+  onKeyDown={(e) => {
 
-            border: "none",
+    if (e.key === "Enter") {
 
-            fontSize: 16,
+      e.preventDefault();
 
-            background:
-              "rgba(0,0,0,0.3)",
+      const allInputs =
+        Array.from(
+          document.querySelectorAll(
+            ".score-input"
+          )
+        );
 
-            color: "white"
-          }}
-        />
+      const currentIndex =
+        allInputs.indexOf(
+          e.target
+        );
+
+      const nextInput =
+        allInputs[
+          currentIndex + 1
+        ];
+
+      if (nextInput) {
+
+        setTimeout(() => {
+
+          nextInput.focus();
+
+        }, 50);
+
+      } else {
+
+        const submitBtn =
+          document.querySelector(
+            ".submit-round-btn"
+          );
+
+        if (submitBtn) {
+
+          setTimeout(() => {
+
+            submitBtn.focus();
+
+          }, 50);
+        }
+      }
+    }
+  }}
+
+  style={{
+    width: "100%",
+
+    padding: 14,
+
+    borderRadius: 14,
+
+    border: "none",
+
+    fontSize: 16,
+
+    background:
+      "rgba(0,0,0,0.3)",
+
+    color: "white"
+  }}
+/>
 
       )}
 
     </motion.div>
+
   );
 }
