@@ -18,31 +18,51 @@ export default function PlayerCard({
       }}
 
       animate={{
-        opacity: 1,
-        y: 0
-      }}
 
-      whileHover={{
-        scale: 1.03
-      }}
+      opacity: 1,
+
+       y: 0
+    }}
 
       transition={{
-        duration: 0.3
-      }}
+
+      duration: 0.4,
+
+      ease: "easeOut"
+    }}
 
       style={{
 
         background:
-          player.color,
+          `${player.color}22`,
 
-        color: "white",
+        backdropFilter:
+          "blur(14px)",
+
+        border:
+          "1px solid rgba(255,255,255,0.15)",
+
+        color:
+          player.leading
+            ? "#00e5ff"
+            : "white",
 
         padding: 18,
 
         borderRadius: 22,
 
         opacity:
-          eliminated ? 0.4 : 1,
+          eliminated ? 0.2 : 1,
+
+        filter:
+          eliminated
+            ? "grayscale(1) blur(1px)"
+            : "none",
+
+        transform:
+          eliminated
+            ? "rotate(-1deg) scale(0.96)"
+            : "none",
 
         boxShadow:
           player.leading
@@ -109,97 +129,99 @@ export default function PlayerCard({
             fontWeight: "bold"
           }}
         >
-          ❌ Eliminated
+          💀 Eliminated
         </div>
 
       ) : (
 
         <input
-  type="number"
+          type="number"
 
-  placeholder="Round score"
+          placeholder="Round score"
 
-  className="score-input"
+          className="score-input"
 
-  onChange={(e) => {
+          onChange={(e) => {
 
-    updateScore(
-      player.id,
-      e.target.value
-    );
-  }}
+            updateScore(
+              player.id,
+              e.target.value
+            );
+          }}
 
-  onKeyDown={(e) => {
+          onKeyDown={(e) => {
 
-    if (e.key === "Enter") {
+            if (e.key === "Enter") {
 
-      e.preventDefault();
+              e.preventDefault();
 
-      const allInputs =
-        Array.from(
-          document.querySelectorAll(
-            ".score-input"
-          )
-        );
+              const allInputs =
+                Array.from(
+                  document.querySelectorAll(
+                    ".score-input"
+                  )
+                );
 
-      const currentIndex =
-        allInputs.indexOf(
-          e.target
-        );
+              const currentIndex =
+                allInputs.indexOf(
+                  e.target
+                );
 
-      const nextInput =
-        allInputs[
-          currentIndex + 1
-        ];
+              const nextInput =
+                allInputs[
+                  currentIndex + 1
+                ];
 
-      if (nextInput) {
+              if (nextInput) {
 
-        setTimeout(() => {
+                setTimeout(() => {
 
-          nextInput.focus();
+                  nextInput.focus();
 
-        }, 50);
+                }, 50);
 
-      } else {
+              } else {
 
-        const submitBtn =
-          document.querySelector(
-            ".submit-round-btn"
-          );
+                const submitBtn =
+                  document.querySelector(
+                    ".submit-round-btn"
+                  );
 
-        if (submitBtn) {
+                if (submitBtn) {
 
-          setTimeout(() => {
+                  setTimeout(() => {
 
-            submitBtn.focus();
+                    submitBtn.focus();
 
-          }, 50);
-        }
-      }
-    }
-  }}
+                  }, 50);
+                }
+              }
+            }
+          }}
 
-  style={{
-    width: "100%",
+          style={{
 
-    padding: 14,
+            width: "100%",
 
-    borderRadius: 14,
+            padding: 14,
 
-    border: "none",
+            borderRadius: 14,
 
-    fontSize: 16,
+            border: "none",
 
-    background:
-      "rgba(0,0,0,0.3)",
+            fontSize: 16,
 
-    color: "white"
-  }}
-/>
+            background:
+              "rgba(0,0,0,0.3)",
+
+            color: "white",
+
+            outline: "none"
+          }}
+        />
 
       )}
 
     </motion.div>
-
   );
 }

@@ -226,6 +226,21 @@ const winAudio =
         ].name
       : "No Players Yet";
 
+      const dealerQuotes = [
+
+  "🃏 Somebody call an ambulance.",
+
+  "🔥 That round was criminal.",
+
+  "👑 Main character energy detected.",
+
+  "💀 Bro is collecting points like Pokémon.",
+
+  "⚡ The dealer is disappointed.",
+
+  "🎴 Fate has chosen violence."
+];
+
   return (
 
     <div
@@ -303,6 +318,33 @@ const winAudio =
       <DealerBanner
         dealer={dealer}
       />
+
+      <div
+        style={{
+
+          marginBottom: 20,
+
+          color: "#c084fc",
+
+          fontStyle: "italic",
+
+          textAlign: "center",
+
+          fontSize: 18,
+
+          textShadow:
+            "0 0 12px rgba(192,132,252,0.6)"
+        }}
+      >
+
+  {
+    dealerQuotes[
+      round %
+      dealerQuotes.length
+    ]
+  }
+
+</div>
 
       <div
         style={{
@@ -503,111 +545,258 @@ const winAudio =
 
       {winner && (
 
-        <>
+  <>
 
-          <Confetti />
+    <Confetti />
 
-          <div
-            style={{
-              position: "fixed",
+    <div
+      style={{
 
-              inset: 0,
+        position: "fixed",
 
-              background:
-                "rgba(0,0,0,0.9)",
+        inset: 0,
 
-              display: "flex",
+        background:
+          "rgba(0,0,0,0.88)",
 
-              justifyContent:
-                "center",
+        backdropFilter:
+          "blur(12px)",
 
-              alignItems: "center",
+        display: "flex",
 
-              zIndex: 999
-            }}
-          >
+        justifyContent:
+          "center",
 
-            <div
-              style={{
-                background:
-                  winner.color,
+        alignItems: "center",
 
-                padding: 40,
+        zIndex: 9999,
 
-                borderRadius: 30,
+        padding: 20
+      }}
+    >
 
-                textAlign: "center",
+      <div
+        style={{
 
-                boxShadow:
-                  `0 0 40px ${winner.color}`,
+          width: "100%",
 
-                width: 320
-              }}
-            >
+          maxWidth: 700,
 
-              <div
-                style={{
-                  fontSize: 80
-                }}
-              >
-                👑
-              </div>
+          background:
+            "rgba(255,255,255,0.08)",
 
-              <h1
-                style={{
-                  marginBottom: 10
-                }}
-              >
-                {winner.avatar}
-                {" "}
-                {winner.name}
-              </h1>
+          border:
+            "1px solid rgba(255,255,255,0.12)",
 
-              <h2>
-                Wins The Match!
-              </h2>
+          borderRadius: 30,
 
-              <button
-                onClick={() => {
+          padding: 30,
 
-                  localStorage.clear();
+          backdropFilter:
+            "blur(20px)",
 
-                  window.location.reload();
-                }}
+          boxShadow:
+            "0 0 40px rgba(0,229,255,0.25)",
 
-                style={{
-                  marginTop: 20,
+          textAlign: "center"
+        }}
+      >
 
-                  width: "100%",
+        <h1
+          style={{
 
-                  padding: 16,
+            fontSize: 60,
 
-                  borderRadius: 16,
+            marginBottom: 10,
 
-                  border: "none",
+            textShadow:
+              "0 0 20px #00e5ff"
+          }}
+        >
+          🏆
+        </h1>
 
-                  background: "black",
+        <h1
+          style={{
 
-                  color: "white",
+            marginBottom: 10
+          }}
+        >
+          {winner.avatar}
+          {" "}
+          {winner.name}
+        </h1>
 
-                  fontWeight: "bold",
+        <p
+          style={{
 
-                  fontSize: 16,
+            color: "#c084fc",
 
-                  cursor: "pointer"
-                }}
-              >
-                🎮 Start New Match
-              </button>
+            marginBottom: 30,
 
-            </div>
+            fontSize: 20
+          }}
+        >
+          Wins The Match
+        </p>
 
-          </div>
+        <div
+          style={{
 
-        </>
+            display: "flex",
 
-      )}
+            flexDirection: "column",
+
+            gap: 14
+          }}
+        >
+
+          {[...players]
+
+            .sort(
+              (a, b) =>
+                a.total - b.total
+            )
+
+            .map(
+              (player, index) => (
+
+                <div
+                  key={player.id}
+
+                  style={{
+
+                    background:
+                      "rgba(255,255,255,0.06)",
+
+                    border:
+                      "1px solid rgba(255,255,255,0.1)",
+
+                    borderRadius: 18,
+
+                    padding: 18,
+
+                    display: "flex",
+
+                    justifyContent:
+                      "space-between",
+
+                    alignItems:
+                      "center"
+                  }}
+                >
+
+                  <div
+                    style={{
+
+                      display: "flex",
+
+                      gap: 12,
+
+                      alignItems:
+                        "center"
+                    }}
+                  >
+
+                    <div
+                      style={{
+                        fontSize: 28
+                      }}
+                    >
+                      {index === 0
+                        ? "🥇"
+                        : index === 1
+                        ? "🥈"
+                        : index === 2
+                        ? "🥉"
+                        : "🎴"}
+                    </div>
+
+                    <div
+                      style={{
+                        textAlign:
+                          "left"
+                      }}
+                    >
+
+                      <h3
+                        style={{
+                          margin: 0
+                        }}
+                      >
+                        {player.avatar}
+                        {" "}
+                        {player.name}
+                      </h3>
+
+                      <p
+                        style={{
+                          color:
+                            "#aaa"
+                        }}
+                      >
+                        Final Score
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                  <h2
+                    style={{
+                      margin: 0
+                    }}
+                  >
+                    {player.total}
+                  </h2>
+
+                </div>
+              )
+            )}
+
+        </div>
+
+        <button
+
+          onClick={() => {
+
+            localStorage.clear();
+
+            window.location.reload();
+          }}
+
+          style={{
+
+            marginTop: 30,
+
+            width: "100%",
+
+            padding: 18,
+
+            borderRadius: 18,
+
+            border: "none",
+
+            background:
+              "#00e5ff",
+
+            color: "black",
+
+            fontWeight: "bold",
+
+            fontSize: 18
+          }}
+        >
+          🎮 Start New Match
+        </button>
+
+      </div>
 
     </div>
-  );
+
+  </>
+)}
+
+    </div>
+    )
 }
