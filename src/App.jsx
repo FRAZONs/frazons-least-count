@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
-import { loadSlim } from "tsparticles-slim";
+import { loadSlim } from "@tsparticles/slim";
 import Home from "./pages/Home";
 import Game from "./pages/Game";
 import Lobby from "./pages/Lobby";
