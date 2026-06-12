@@ -50,6 +50,14 @@ export default function Home({ setScreen }) {
           ☁️ Online Multiplayer
         </button>
 
+        <button onClick={() => setScreen("practice")} style={buttonStyle("pink")}>
+          🤖 Practice Mode (Bots)
+        </button>
+
+        <button onClick={() => setScreen("stats")} style={buttonStyle("purple")}>
+          📊 Career Stats
+        </button>
+
         <button onClick={() => setScreen("leaderboard")} style={buttonStyle("cyan")}>
           🏆 Leaderboard
         </button>

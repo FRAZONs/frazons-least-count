@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import clickSound from "../audio/click.mp3";
 import winSound from "../audio/win.mp3";
 import Confetti from "react-confetti";
@@ -7,6 +7,8 @@ import DealerBanner from "../components/DealerBanner";
 import ScoreTable from "../components/ScoreTable";
 import { STORAGE_KEYS } from "../constants";
 import { useToast } from "../hooks/useToast";
+import { updateLocalStats } from "../utils/playerStats";
+import WinnerPodium from "../components/WinnerPodium";
 
 const DEALER_QUOTES = [
   "🃏 Somebody call an ambulance.",
@@ -18,7 +20,6 @@ const DEALER_QUOTES = [
 ];
 
 const AVATARS = ["😈", "🤖", "🦊", "🐸", "🦅", "🎭", "👑"];
-const SCORE_LIMIT = 200;
 
 const createNewPlayer = (name, avatar, color) => ({
   id: Date.now(),
@@ -36,10 +37,18 @@ export default function Game({ setScreen, players, setPlayers, history, setHisto
   const [playerColor, setPlayerColor] = useState("#00e5ff");
   const [scores, setScores] = useState({});
   const [winner, setWinner] = useState(null);
+  const [scoreLimit, setScoreLimit] = useState(() => {
+    const saved = localStorage.getItem("frazons-score-limit");
+    return saved ? Number(saved) : 200;
+  });
   const { warning } = useToast();
 
   const clickAudio = new Audio(clickSound);
   const winAudio = new Audio(winSound);
+
+  useEffect(() => {
+    localStorage.setItem("frazons-score-limit", scoreLimit.toString());
+  }, [scoreLimit]);
 
   const addPlayer = () => {
     clickAudio.play();
@@ -78,7 +87,7 @@ export default function Game({ setScreen, players, setPlayers, history, setHisto
         ...player,
         currentScore: "",
         total: newTotal,
-        eliminated: newTotal > SCORE_LIMIT
+        eliminated: newTotal > scoreLimit
       };
     });
 
@@ -100,9 +109,26 @@ export default function Game({ setScreen, players, setPlayers, history, setHisto
     setHistory([...history, roundData]);
     setPlayers(updatedPlayers);
 
+    // Local stats round track
+    updateLocalStats({ totalRoundsPlayed: 1 });
+    const primaryName = localStorage.getItem("playerName") || "";
+    if (primaryName) {
+      const myPlayer = players.find(p => p.name.toLowerCase() === primaryName.toLowerCase());
+      if (myPlayer && !myPlayer.eliminated) {
+        const myRoundScore = Number(scores[myPlayer.id]) || 0;
+        updateLocalStats({ totalPointsAccumulated: myRoundScore });
+      }
+    }
+
     if (activePlayers.length === 1) {
       winAudio.play();
       setWinner(activePlayers[0]);
+
+      // Local stats match complete track
+      updateLocalStats({ offlineMatchesPlayed: 1 });
+      if (primaryName && activePlayers[0].name.toLowerCase() === primaryName.toLowerCase()) {
+        updateLocalStats({ offlineMatchesWon: 1 });
+      }
     }
 
     setScores({});
@@ -118,7 +144,58 @@ export default function Game({ setScreen, players, setPlayers, history, setHisto
     setRound(round + 1);
   };
 
-  const dealer = players.length > 0 ? players[(round - 1) % players.length].name : "No Players Yet";
+  const undoLastRound = () => {
+    clickAudio.play();
+    if (history.length === 0) return;
+    
+    const lastRound = history[history.length - 1];
+    const prevHistory = history.slice(0, -1);
+    
+    const updatedPlayers = players.map((player, idx) => {
+      const roundScore = Number(lastRound.scores[idx]) || 0;
+      const newTotal = Math.max(0, player.total - roundScore);
+      return {
+        ...player,
+        total: newTotal,
+        eliminated: newTotal > scoreLimit,
+        leading: false
+      };
+    });
+    
+    const activePlayers = updatedPlayers.filter((p) => !p.eliminated);
+    if (activePlayers.length > 0) {
+      const lowestScore = Math.min(...activePlayers.map((p) => p.total));
+      updatedPlayers.forEach((p) => {
+        p.leading = !p.eliminated && p.total === lowestScore;
+      });
+    }
+    
+    setPlayers(updatedPlayers);
+    setHistory(prevHistory);
+    setRound(Math.max(1, round - 1));
+    setWinner(null);
+  };
+
+  const resetMatch = () => {
+    clickAudio.play();
+    if (!window.confirm("Are you sure you want to reset the current match? This will clear all scores but keep the player list.")) return;
+    
+    const resetPlayers = players.map(p => ({
+      ...p,
+      total: 0,
+      leading: false,
+      eliminated: false
+    }));
+    
+    setPlayers(resetPlayers);
+    setHistory([]);
+    setRound(1);
+    setWinner(null);
+    setScores({});
+  };
+
+  const activePlayers = players.filter((p) => !p.eliminated);
+  const dealer = activePlayers.length > 0 ? activePlayers[(round - 1) % activePlayers.length].name : "No Players Yet";
   const dealerQuote = DEALER_QUOTES[round % DEALER_QUOTES.length];
 
   return (
@@ -137,6 +214,33 @@ export default function Game({ setScreen, players, setPlayers, history, setHisto
 
       <div style={{ marginBottom: 20, color: "#c084fc", fontStyle: "italic", textAlign: "center", fontSize: 18, textShadow: "0 0 12px rgba(192,132,252,0.6)" }}>
         {dealerQuote}
+      </div>
+
+      {/* Local Game Customizer Settings */}
+      <div style={{ background: "#1d1d1d", padding: 16, borderRadius: 20, marginBottom: 25, border: "1px solid rgba(255,255,255,0.08)" }}>
+        <h3 style={{ marginTop: 0, marginBottom: 12, color: "#00e5ff" }}>⚙️ Game Settings</h3>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <label style={{ fontSize: 15, color: "#aaa" }}>Max Score Limit:</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input
+              type="number"
+              value={scoreLimit}
+              onChange={(e) => setScoreLimit(Math.max(10, Number(e.target.value) || 200))}
+              style={{
+                width: 90,
+                padding: "8px 12px",
+                borderRadius: 10,
+                border: "none",
+                background: "rgba(0,0,0,0.3)",
+                color: "white",
+                fontSize: 15,
+                fontWeight: "bold",
+                textAlign: "center"
+              }}
+            />
+            <span style={{ fontSize: 14, color: "#aaa" }}>pts</span>
+          </div>
+        </div>
       </div>
 
       <div style={{ background: "#1d1d1d", padding: 16, borderRadius: 20, marginBottom: 25 }}>
@@ -201,118 +305,74 @@ export default function Game({ setScreen, players, setPlayers, history, setHisto
       </div>
 
       {players.length > 0 && (
-        <button
-          onClick={submitRound}
-          className="submit-round-btn"
-          style={{
-            width: "100%",
-            marginTop: 25,
-            padding: 18,
-            borderRadius: 18,
-            border: "none",
-            background: "#ff00c8",
-            color: "white",
-            fontWeight: "bold",
-            fontSize: 18,
-            cursor: "pointer"
-          }}
-        >
-          🎯 Submit Round
-        </button>
-      )}
-
-      <ScoreTable history={history} players={players} />
-
-      {winner && (
-        <>
-          <Confetti />
-          <div
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 25 }}>
+          <button
+            onClick={submitRound}
+            className="submit-round-btn"
             style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.88)",
-              backdropFilter: "blur(12px)",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              zIndex: 9999,
-              padding: 20
+              width: "100%",
+              padding: 18,
+              borderRadius: 18,
+              border: "none",
+              background: "#ff00c8",
+              color: "white",
+              fontWeight: "bold",
+              fontSize: 18,
+              cursor: "pointer"
             }}
           >
-            <div
+            🎯 Submit Round
+          </button>
+          
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              onClick={undoLastRound}
+              disabled={history.length === 0}
               style={{
-                width: "100%",
-                maxWidth: 700,
-                background: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                borderRadius: 30,
-                padding: 30,
-                backdropFilter: "blur(20px)",
-                boxShadow: "0 0 40px rgba(0,229,255,0.25)",
-                textAlign: "center"
+                flex: 1,
+                padding: "12px 16px",
+                borderRadius: 14,
+                border: "none",
+                background: history.length === 0 ? "#444" : "rgba(255, 255, 255, 0.08)",
+                color: history.length === 0 ? "#777" : "white",
+                fontWeight: "bold",
+                cursor: history.length === 0 ? "not-allowed" : "pointer",
+                fontSize: 14
               }}
             >
-              <h1 style={{ fontSize: 60, marginBottom: 10, textShadow: "0 0 20px #00e5ff" }}>🏆</h1>
-              <h1 style={{ marginBottom: 10 }}>
-                {winner.avatar} {winner.name}
-              </h1>
-              <p style={{ color: "#c084fc", marginBottom: 30, fontSize: 20 }}>Wins The Match</p>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {[...players]
-                  .sort((a, b) => a.total - b.total)
-                  .map((player, index) => (
-                    <div
-                      key={player.id}
-                      style={{
-                        background: "rgba(255,255,255,0.06)",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        borderRadius: 18,
-                        padding: 18,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center"
-                      }}
-                    >
-                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                        <div style={{ fontSize: 28 }}>
-                          {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : "🎴"}
-                        </div>
-                        <div style={{ textAlign: "left" }}>
-                          <h3 style={{ margin: 0 }}>
-                            {player.avatar} {player.name}
-                          </h3>
-                          <p style={{ color: "#aaa" }}>Final Score</p>
-                        </div>
-                      </div>
-                      <h2 style={{ margin: 0 }}>{player.total}</h2>
-                    </div>
-                  ))}
-              </div>
-
-              <button
-                onClick={() => {
-                  Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
-                  window.location.reload();
-                }}
-                style={{
-                  marginTop: 30,
-                  width: "100%",
-                  padding: 18,
-                  borderRadius: 18,
-                  border: "none",
-                  background: "#00e5ff",
-                  color: "black",
-                  fontWeight: "bold",
-                  fontSize: 18,
-                  cursor: "pointer"
-                }}
-              >
-                🎮 Start New Match
-              </button>
-            </div>
+              ↩️ Undo Last Round
+            </button>
+            <button
+              onClick={resetMatch}
+              style={{
+                flex: 1,
+                padding: "12px 16px",
+                borderRadius: 14,
+                border: "none",
+                background: "rgba(239, 68, 68, 0.15)",
+                color: "#ef4444",
+                fontWeight: "bold",
+                cursor: "pointer",
+                fontSize: 14
+              }}
+            >
+              🔄 Reset Match
+            </button>
           </div>
-        </>
+        </div>
+      )}
+
+      <ScoreTable history={history} players={players} scoreLimit={scoreLimit} />
+
+      {winner && (
+        <WinnerPodium
+          players={players}
+          onRestart={() => {
+            Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
+            window.location.reload();
+          }}
+          isHost={true}
+        />
       )}
     </div>
   );

@@ -76,3 +76,33 @@ export async function getTopPlayers(db, limit = 10, sortBy = "wins") {
     return [];
   }
 }
+
+export function updateLocalStats(updates) {
+  try {
+    const saved = localStorage.getItem("frazons-career-stats");
+    const current = saved ? JSON.parse(saved) : {
+      onlineMatchesPlayed: 0,
+      onlineMatchesWon: 0,
+      offlineMatchesPlayed: 0,
+      offlineMatchesWon: 0,
+      declarationsMade: 0,
+      declarationsWon: 0,
+      declarationsLost: 0,
+      totalRoundsPlayed: 0,
+      totalPointsAccumulated: 0
+    };
+    
+    const next = { ...current };
+    Object.entries(updates).forEach(([key, val]) => {
+      if (typeof val === "number") {
+        next[key] = (Number(next[key]) || 0) + val;
+      } else {
+        next[key] = val;
+      }
+    });
+    
+    localStorage.setItem("frazons-career-stats", JSON.stringify(next));
+  } catch (e) {
+    console.error("Error updating local stats:", e);
+  }
+}
