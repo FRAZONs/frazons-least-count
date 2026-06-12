@@ -19,6 +19,9 @@ export default function OnlineGame({
   const [selectedCards,
     setSelectedCards] =
     useState([]);
+  const [isDeclaring,
+    setIsDeclaring] =
+    useState(false);
     useEffect(() => {
 
   if (!room?.roomCode)
@@ -428,6 +431,15 @@ const handValue =
 const declareLeastCount =
   async () => {
 
+    if (
+      !isMyTurn ||
+      room?.status !== "playing" ||
+      isDeclaring
+    )
+      return;
+
+    setIsDeclaring(true);
+
     const results =
       {};
 
@@ -446,17 +458,112 @@ const declareLeastCount =
 
     );
 
-    console.log(
-      results
-    );
+    const declarerCount =
+      results[playerName];
 
-    alert(
-      JSON.stringify(
+    const opponentCounts =
+      Object.entries(results)
+        .filter(
+          ([name]) =>
+            name !== playerName
+        )
+        .map(
+          ([, count]) => count
+        );
+
+    const declarationWon =
+      opponentCounts.length === 0 ||
+      opponentCounts.every(
+        (count) =>
+          declarerCount < count
+      );
+
+    const finalScores = {
+      ...results
+    };
+
+    if (!declarationWon) {
+      finalScores[playerName] =
+        declarerCount + 40;
+    }
+
+    const winningScore =
+      Math.min(
+        ...Object.values(
+          finalScores
+        )
+      );
+
+    const winnerNames =
+      Object.entries(finalScores)
+        .filter(
+          ([, count]) =>
+            count === winningScore
+        )
+        .map(
+          ([name]) => name
+        );
+
+    const getDisplayName =
+      (name) =>
+        room.players.find(
+          (player) =>
+            player.name
+              .toLowerCase() ===
+            name
+        )?.name || name;
+
+    const declarationResult = {
+      declarer:
+        getDisplayName(
+          playerName
+        ),
+      declarerKey:
+        playerName,
+      declarationWon,
+      penalty:
+        declarationWon
+          ? 0
+          : 40,
+      scores:
+        finalScores,
+      originalScores:
         results,
-        null,
-        2
-      )
-    );
+      winners:
+        winnerNames.map(
+          getDisplayName
+        )
+    };
+
+    try {
+      await updateDoc(
+        doc(
+          db,
+          "rooms",
+          room.roomCode
+        ),
+        {
+          status: "finished",
+          winner:
+            declarationResult
+              .winners
+              .join(", "),
+          scores:
+            finalScores,
+          declarationResult
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Failed to declare least count",
+        error
+      );
+      alert(
+        "Could not declare Least Count. Please try again."
+      );
+    } finally {
+      setIsDeclaring(false);
+    }
 
   };
 
@@ -504,6 +611,116 @@ const declareLeastCount =
 
   )
 }
+      {
+        room?.declarationResult && (
+          <div
+            style={{
+              maxWidth: 520,
+              margin:
+                "0 auto 20px",
+              padding: 20,
+              borderRadius: 12,
+              background:
+                room
+                  .declarationResult
+                  .declarationWon
+                  ? "rgba(0,184,148,0.2)"
+                  : "rgba(214,48,49,0.2)",
+              border:
+                room
+                  .declarationResult
+                  .declarationWon
+                  ? "1px solid #00b894"
+                  : "1px solid #d63031"
+            }}
+          >
+            <h2
+              style={{
+                marginTop: 0,
+                textAlign:
+                  "center"
+              }}
+            >
+              {
+                room
+                  .declarationResult
+                  .declarationWon
+                  ? `${room.declarationResult.declarer} won the declaration`
+                  : `${room.declarationResult.declarer} lost the declaration`
+              }
+            </h2>
+
+            {
+              !room
+                .declarationResult
+                .declarationWon && (
+                <p
+                  style={{
+                    color:
+                      "#ff7675",
+                    fontWeight:
+                      "bold",
+                    textAlign:
+                      "center"
+                  }}
+                >
+                  40-point penalty applied
+                </p>
+              )
+            }
+
+            {
+              Object.entries(
+                room
+                  .declarationResult
+                  .scores
+              ).map(
+                ([name, score]) => (
+                  <div
+                    key={name}
+                    style={{
+                      display:
+                        "flex",
+                      justifyContent:
+                        "space-between",
+                      padding:
+                        "8px 0",
+                      borderBottom:
+                        "1px solid rgba(255,255,255,0.12)"
+                    }}
+                  >
+                    <span>
+                      {
+                        room.players.find(
+                          (player) =>
+                            player.name
+                              .toLowerCase() ===
+                            name
+                        )?.name ||
+                        name
+                      }
+                    </span>
+                    <strong>
+                      {score}
+                      {
+                        name ===
+                          room
+                            .declarationResult
+                            .declarerKey &&
+                        room
+                          .declarationResult
+                          .penalty > 0
+                          ? " (includes penalty)"
+                          : ""
+                      }
+                    </strong>
+                  </div>
+                )
+              )
+            }
+          </div>
+        )
+      }
 
       <div
         style={{
@@ -690,12 +907,17 @@ const declareLeastCount =
   {handValue}
 </div>
 {
-  isMyTurn && (
+  isMyTurn &&
+  room?.status === "playing" && (
 
     <button
 
       onClick={
         declareLeastCount
+      }
+
+      disabled={
+        isDeclaring
       }
 
       style={{
@@ -715,9 +937,16 @@ const declareLeastCount =
           "bold",
 
         cursor:
-          "pointer",
+          isDeclaring
+            ? "not-allowed"
+            : "pointer",
 
-        marginBottom: 15
+        marginBottom: 15,
+
+        opacity:
+          isDeclaring
+            ? 0.65
+            : 1
 
       }}
     >
