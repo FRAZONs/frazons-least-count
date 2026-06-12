@@ -1,7 +1,8 @@
 export default function ScoreTable({
   history,
   players,
-  scoreLimit = 200
+  scoreLimit = 200,
+  declarationLimit = 20
 }) {
   const cumulativeScores = Array(players.length).fill(0);
   
@@ -32,9 +33,14 @@ export default function ScoreTable({
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 15, flexWrap: "wrap", gap: 10 }}>
         <h2 style={{ margin: 0 }}>📊 Match History</h2>
-        <span style={{ fontSize: 13, color: "#aaa", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}>
-          Limit: <strong style={{ color: "#ff00c8" }}>{scoreLimit} pts</strong>
-        </span>
+        <div style={{ display: "flex", gap: 8 }}>
+          <span style={{ fontSize: 13, color: "#aaa", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}>
+            Limit: <strong style={{ color: "#ff00c8" }}>{scoreLimit} pts</strong>
+          </span>
+          <span style={{ fontSize: 13, color: "#aaa", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}>
+            Decl. Limit: <strong style={{ color: "#f39c12" }}>{declarationLimit} pts</strong>
+          </span>
+        </div>
       </div>
 
       {history.length === 0 ? (

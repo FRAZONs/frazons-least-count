@@ -101,6 +101,7 @@ export default function PracticeGame({ setScreen }) {
   const [boardTheme, setBoardTheme] = useState(() => {
     return localStorage.getItem("frazons-board-theme") || "cyber-violet";
   });
+  const [declarationThreshold, setDeclarationThreshold] = useState(20);
 
   // Game flow states
   const [roundNumber, setRoundNumber] = useState(1);
@@ -142,6 +143,20 @@ export default function PracticeGame({ setScreen }) {
   const [showTutorial, setShowTutorial] = useState(() => {
     return localStorage.getItem("frazons-tutorial-completed") !== "true";
   });
+  const [showChatMenu, setShowChatMenu] = useState(false);
+  const reactMenuRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (reactMenuRef.current && !reactMenuRef.current.contains(event.target)) {
+        setShowChatMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const [sortBy, setSortBy] = useState("default");
   
@@ -549,7 +564,7 @@ export default function PracticeGame({ setScreen }) {
       const botScore = getHandValue(hand, jokerCard?.rank);
 
       // 1. Declare Least Count?
-      const threshold = bot.personality === "safe" ? 5 : 2;
+      const threshold = Math.min(bot.personality === "safe" ? 5 : 2, declarationThreshold);
       if (botScore <= threshold && !pendingDraw) {
         // Perform declaration!
         const originalScores = {
@@ -786,6 +801,26 @@ export default function PracticeGame({ setScreen }) {
                 <option value="classic-green" style={{ background: "#05180d", color: "white" }}>🟢 Classic Green</option>
                 <option value="neon-blue" style={{ background: "#020c19", color: "white" }}>🔵 Neon Blue</option>
                 <option value="dark-carbon" style={{ background: "#0f171e", color: "white" }}>⚫ Dark Carbon</option>
+              </select>
+              <select
+                value={declarationThreshold}
+                onChange={(e) => setDeclarationThreshold(Number(e.target.value))}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  color: "white",
+                  padding: "4px 10px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  outline: "none"
+                }}
+              >
+                <option value={10} style={{ background: "#1a1330", color: "white" }}>Decl. Limit: 10 pts</option>
+                <option value={20} style={{ background: "#1a1330", color: "white" }}>Decl. Limit: 20 pts</option>
+                <option value={30} style={{ background: "#1a1330", color: "white" }}>Decl. Limit: 30 pts</option>
+                <option value={999} style={{ background: "#1a1330", color: "white" }}>Decl. Limit: No limit</option>
               </select>
             </div>
             
@@ -1132,13 +1167,15 @@ export default function PracticeGame({ setScreen }) {
                 >
                   Play Selected
                 </button>
-                <button 
-                  onClick={declareLeastCountLocal} 
-                  style={actionButton("#f39c12")}
-                  className="tutorial-declare-btn"
-                >
-                  Declare Least Count
-                </button>
+                {myCount <= declarationThreshold && (
+                  <button 
+                    onClick={declareLeastCountLocal} 
+                    style={actionButton("#f39c12")}
+                    className="tutorial-declare-btn"
+                  >
+                    Declare Least Count
+                  </button>
+                )}
               </div>
             )}
 
@@ -1146,43 +1183,108 @@ export default function PracticeGame({ setScreen }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 15, flexWrap: "wrap", gap: 10 }}>
               <h2 style={{ margin: 0 }}>Your Hand</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-                {/* Emoji reactions */}
-                <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.04)", padding: "4px 8px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.08)" }}>
-                  {["😂", "🔥", "💀", "👍", "🎉"].map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => sendReaction(emoji)}
-                      style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", padding: 3, transition: "transform 0.1s" }}
-                      onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.2)"}
-                      onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
+                {/* Chat and Emoji Reaction dropdown */}
+                <div ref={reactMenuRef} style={{ position: "relative" }}>
+                  <button
+                    onClick={() => setShowChatMenu(!showChatMenu)}
+                    style={{
+                      background: showChatMenu ? "#6c5ce7" : "rgba(255,255,255,0.08)",
+                      color: "white",
+                      border: "none",
+                      padding: "6px 14px",
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: "bold",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    💬 React
+                  </button>
 
-                {/* Quick Chat bar */}
-                <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.04)", padding: "4px 8px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.08)" }}>
-                  {["Hurry up! ⏳", "Nice hand! 👍", "Oops! 💀", "Good game! 🤝"].map((phrase) => (
-                    <button
-                      key={phrase}
-                      onClick={() => sendQuickChat(phrase)}
+                  {showChatMenu && (
+                    <div
                       style={{
-                        background: "none",
-                        border: "none",
-                        color: "#00e5ff",
-                        fontSize: 11,
-                        fontWeight: "bold",
-                        cursor: "pointer",
-                        padding: "3px 6px",
-                        transition: "transform 0.1s"
+                        position: "absolute",
+                        bottom: "125%",
+                        right: 0,
+                        background: "rgba(30, 20, 50, 0.95)",
+                        backdropFilter: "blur(12px)",
+                        border: "1px solid #6c5ce7",
+                        borderRadius: 16,
+                        padding: 12,
+                        boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 15px rgba(108,92,231,0.2)",
+                        zIndex: 100,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 10,
+                        minWidth: 220
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.15)"}
-                      onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
                     >
-                      {phrase}
-                    </button>
-                  ))}
+                      {/* Emoji Row */}
+                      <div style={{ display: "flex", justifyContent: "space-around", gap: 6, background: "rgba(255,255,255,0.05)", padding: "6px 10px", borderRadius: 12 }}>
+                        {["😂", "🔥", "💀", "👍", "🎉"].map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => {
+                              sendReaction(emoji);
+                              setShowChatMenu(false);
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              fontSize: 18,
+                              cursor: "pointer",
+                              padding: 4,
+                              transition: "transform 0.1s"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.25)"}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Quick Chat List */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {["Hurry up! ⏳", "Nice hand! 👍", "Oops! 💀", "Good game! 🤝"].map((phrase) => (
+                          <button
+                            key={phrase}
+                            onClick={() => {
+                              sendQuickChat(phrase);
+                              setShowChatMenu(false);
+                            }}
+                            style={{
+                              background: "rgba(255,255,255,0.03)",
+                              border: "1px solid rgba(255,255,255,0.06)",
+                              color: "#00e5ff",
+                              fontSize: 12,
+                              fontWeight: "bold",
+                              cursor: "pointer",
+                              padding: "8px 12px",
+                              borderRadius: 8,
+                              textAlign: "left",
+                              transition: "all 0.2s ease"
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = "rgba(0, 229, 255, 0.1)";
+                              e.currentTarget.style.borderColor = "rgba(0, 229, 255, 0.3)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+                              e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
+                            }}
+                          >
+                            {phrase}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Sort Button */}

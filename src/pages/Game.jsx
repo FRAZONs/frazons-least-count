@@ -41,6 +41,12 @@ export default function Game({ setScreen, players, setPlayers, history, setHisto
     const saved = localStorage.getItem("frazons-score-limit");
     return saved ? Number(saved) : 200;
   });
+  const [declarationLimit, setDeclarationLimit] = useState(() => {
+    const saved = localStorage.getItem("frazons-declaration-limit");
+    if (saved) return Number(saved);
+    const savedScoreLimit = Number(localStorage.getItem("frazons-score-limit")) || 200;
+    return savedScoreLimit === 100 ? 10 : savedScoreLimit === 200 ? 20 : Math.floor(savedScoreLimit / 10);
+  });
   const { warning } = useToast();
 
   const clickAudio = new Audio(clickSound);
@@ -49,6 +55,10 @@ export default function Game({ setScreen, players, setPlayers, history, setHisto
   useEffect(() => {
     localStorage.setItem("frazons-score-limit", scoreLimit.toString());
   }, [scoreLimit]);
+
+  useEffect(() => {
+    localStorage.setItem("frazons-declaration-limit", declarationLimit.toString());
+  }, [declarationLimit]);
 
   const addPlayer = () => {
     clickAudio.play();
@@ -225,7 +235,34 @@ export default function Game({ setScreen, players, setPlayers, history, setHisto
             <input
               type="number"
               value={scoreLimit}
-              onChange={(e) => setScoreLimit(Math.max(10, Number(e.target.value) || 200))}
+              onChange={(e) => {
+                const newLimit = Math.max(10, Number(e.target.value) || 200);
+                setScoreLimit(newLimit);
+                const newDecl = newLimit === 100 ? 10 : newLimit === 200 ? 20 : Math.floor(newLimit / 10);
+                setDeclarationLimit(newDecl);
+              }}
+              style={{
+                width: 90,
+                padding: "8px 12px",
+                borderRadius: 10,
+                border: "none",
+                background: "rgba(0,0,0,0.3)",
+                color: "white",
+                fontSize: 15,
+                fontWeight: "bold",
+                textAlign: "center"
+              }}
+            />
+            <span style={{ fontSize: 14, color: "#aaa" }}>pts</span>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12 }}>
+          <label style={{ fontSize: 15, color: "#aaa" }}>Declaration Limit:</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input
+              type="number"
+              value={declarationLimit}
+              onChange={(e) => setDeclarationLimit(Math.max(1, Number(e.target.value) || 20))}
               style={{
                 width: 90,
                 padding: "8px 12px",
@@ -362,7 +399,7 @@ export default function Game({ setScreen, players, setPlayers, history, setHisto
         </div>
       )}
 
-      <ScoreTable history={history} players={players} scoreLimit={scoreLimit} />
+      <ScoreTable history={history} players={players} scoreLimit={scoreLimit} declarationLimit={declarationLimit} />
 
       {winner && (
         <WinnerPodium

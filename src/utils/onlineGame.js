@@ -8,7 +8,8 @@ export const DEFAULT_ONLINE_SETTINGS = {
   declarationPenalty: 40,
   startingCards: 7,
   turnSeconds: 30,
-  tieBehavior: "declarer-loses"
+  tieBehavior: "declarer-loses",
+  declarationThreshold: 20
 };
 
 export const playerKey = (name = "") => name.trim().toLowerCase();

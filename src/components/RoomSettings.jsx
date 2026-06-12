@@ -20,6 +20,17 @@ export default function RoomSettings({ onSettingsChange }) {
     onSettingsChange(nextSettings);
   };
 
+  const handleMaxScoreChange = (newMaxScore) => {
+    const defaultThreshold = newMaxScore === 100 ? 10 : newMaxScore === 200 ? 20 : 50;
+    const nextSettings = {
+      ...settings,
+      maxScore: newMaxScore,
+      declarationThreshold: defaultThreshold
+    };
+    setSettings(nextSettings);
+    onSettingsChange(nextSettings);
+  };
+
   const labelStyle = {
     color: "#c4b5fd",
     fontSize: 12,
@@ -43,7 +54,7 @@ export default function RoomSettings({ onSettingsChange }) {
       <label style={labelStyle}>Score limit</label>
       <select
         value={settings.maxScore}
-        onChange={(event) => updateSetting("maxScore", Number(event.target.value))}
+        onChange={(event) => handleMaxScoreChange(Number(event.target.value))}
         style={{ ...fieldStyle, marginBottom: 12 }}
       >
         <option value={100}>100 points</option>
@@ -113,10 +124,22 @@ export default function RoomSettings({ onSettingsChange }) {
       <select
         value={settings.tieBehavior}
         onChange={(event) => updateSetting("tieBehavior", event.target.value)}
-        style={fieldStyle}
+        style={{ ...fieldStyle, marginBottom: 12 }}
       >
         <option value="declarer-loses">Declarer loses</option>
         <option value="declarer-wins">Declarer wins</option>
+      </select>
+
+      <label style={labelStyle}>Declaration Threshold</label>
+      <select
+        value={settings.declarationThreshold || 20}
+        onChange={(event) => updateSetting("declarationThreshold", Number(event.target.value))}
+        style={fieldStyle}
+      >
+        <option value={10}>10 points or below</option>
+        <option value={20}>20 points or below</option>
+        <option value={30}>30 points or below</option>
+        <option value={999}>No limit (Always show)</option>
       </select>
     </div>
   );
