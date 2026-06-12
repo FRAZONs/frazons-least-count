@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Particles from "@tsparticles/react";
@@ -8,12 +8,13 @@ import Game from "./pages/Game";
 import Lobby from "./pages/Lobby";
 import Multiplayer from "./pages/Multiplayer";
 import OnlineGame from "./pages/OnlineGame";
-import Leaderboard from "./pages/Leaderboard";
 import ambientMusic from "./audio/ambient.mp3";
 import { STORAGE_KEYS } from "./constants";
 import ConnectionStatus from "./components/ConnectionStatus";
 import ToastContainer from "./components/ToastContainer";
 import ErrorBoundary from "./components/ErrorBoundary";
+
+const Leaderboard = lazy(() => import("./pages/Leaderboard"));
 
 const safeGetJSON = (key, defaultValue) => {
   try {
@@ -168,7 +169,26 @@ export default function App() {
       <div style={{ position: "relative", zIndex: 1, width: "100%" }}>
         <ErrorBoundary>
           {screen === "home" && <Home setScreen={setScreen} />}
-          {screen === "leaderboard" && <Leaderboard setScreen={setScreen} />}
+          {screen === "leaderboard" && (
+            <Suspense
+              fallback={
+                <div
+                  style={{
+                    minHeight: "100vh",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "white",
+                    fontSize: 18
+                  }}
+                >
+                  Loading leaderboard...
+                </div>
+              }
+            >
+              <Leaderboard setScreen={setScreen} />
+            </Suspense>
+          )}
           {screen === "multiplayer" && <Multiplayer setScreen={setScreen} setRoom={setRoom} />}
           {screen === "lobby" && <Lobby setScreen={setScreen} room={room} setRoom={setRoom} />}
           {screen === "game" && (
