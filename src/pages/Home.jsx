@@ -1,14 +1,6 @@
-import { useState } from "react";
-import { db } from "../firebase";
-import { doc, setDoc, getDoc } from "firebase/firestore";
-import generateRoomCode from "../utils/generateRoomCode";
 import { STORAGE_KEYS, BUTTON_STYLES, HOME_PAGE_STYLE } from "../constants";
-import { useToast } from "../hooks/useToast";
 
 export default function Home({ setScreen }) {
-  const [loading, setLoading] = useState(false);
-  const { success, error } = useToast();
-
   const hasSave = localStorage.getItem(STORAGE_KEYS.players);
 
   const clearStorage = () => {
@@ -29,9 +21,7 @@ export default function Home({ setScreen }) {
 
   const buttonStyle = (colorVariant) => ({
     ...BUTTON_STYLES.base,
-    ...BUTTON_STYLES[colorVariant],
-    opacity: loading ? 0.6 : 1,
-    pointerEvents: loading ? "none" : "auto"
+    ...BUTTON_STYLES[colorVariant]
   });
 
   return (

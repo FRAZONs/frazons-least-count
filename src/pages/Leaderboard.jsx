@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { db } from "../firebase";
 import { getTopPlayers } from "../utils/playerStats";
 import { useToast } from "../hooks/useToast";
@@ -10,20 +10,27 @@ export default function Leaderboard({ setScreen }) {
   const { error } = useToast();
 
   useEffect(() => {
-    loadLeaderboard();
-  }, [sortBy]);
+    let active = true;
+    getTopPlayers(db, 20, sortBy)
+      .then((topPlayers) => {
+        if (active) setPlayers(topPlayers);
+      })
+      .catch((err) => {
+        if (active) error("Failed to load leaderboard");
+        console.error(err);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
-  const loadLeaderboard = async () => {
+    return () => {
+      active = false;
+    };
+  }, [error, sortBy]);
+
+  const changeSort = (nextSort) => {
     setLoading(true);
-    try {
-      const topPlayers = await getTopPlayers(db, 20, sortBy);
-      setPlayers(topPlayers);
-    } catch (err) {
-      error("Failed to load leaderboard");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    setSortBy(nextSort);
   };
 
   return (
@@ -62,7 +69,7 @@ export default function Leaderboard({ setScreen }) {
 
       <div style={{ marginBottom: 20, display: "flex", gap: 10 }}>
         <button
-          onClick={() => setSortBy("wins")}
+          onClick={() => changeSort("wins")}
           style={{
             padding: "10px 20px",
             borderRadius: 10,
@@ -76,7 +83,7 @@ export default function Leaderboard({ setScreen }) {
           🎯 Most Wins
         </button>
         <button
-          onClick={() => setSortBy("totalScore")}
+          onClick={() => changeSort("totalScore")}
           style={{
             padding: "10px 20px",
             borderRadius: 10,

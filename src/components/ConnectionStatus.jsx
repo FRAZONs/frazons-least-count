@@ -34,7 +34,7 @@ const STATUS_STYLES = {
 };
 
 export default function ConnectionStatus() {
-  const { status, isOnline } = useConnection();
+  const { status } = useConnection();
   const style = STATUS_STYLES[status] || STATUS_STYLES.checking;
 
   const labels = {

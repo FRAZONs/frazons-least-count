@@ -1,44 +1,40 @@
-import { useState, useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 const toastStore = {
-  listeners: [],
+  listeners: new Set(),
   toasts: [],
 
   subscribe(listener) {
-    this.listeners.push(listener);
-    return () => {
-      this.listeners = this.listeners.filter((l) => l !== listener);
-    };
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   },
 
-  notify(listeners) {
-    listeners.forEach((listener) => listener([...this.toasts]));
+  getSnapshot() {
+    return this.toasts;
+  },
+
+  notify() {
+    this.listeners.forEach((listener) => listener());
   },
 
   add(toast) {
     const id = Date.now() + Math.random();
-    this.toasts.push({ ...toast, id });
-    this.notify(this.listeners);
+    this.toasts = [...this.toasts, { ...toast, id }];
+    this.notify();
     return id;
   },
 
   remove(id) {
-    this.toasts = this.toasts.filter((t) => t.id !== id);
-    this.notify(this.listeners);
+    this.toasts = this.toasts.filter((toast) => toast.id !== id);
+    this.notify();
   }
 };
 
 export function useToast() {
-  const [toasts, setToasts] = useState([]);
-
-  const unsubscribe = useCallback(() => {
-    return toastStore.subscribe(setToasts);
-  }, []);
-
-  // Subscribe on mount
-  if (toasts.length === 0 && toastStore.toasts.length > 0) {
-    setToasts([...toastStore.toasts]);
-  }
+  const toasts = useSyncExternalStore(
+    (listener) => toastStore.subscribe(listener),
+    () => toastStore.getSnapshot()
+  );
 
   const showToast = useCallback((message, type = "info", duration = 3000) => {
     const id = toastStore.add({ message, type });
@@ -48,25 +44,23 @@ export function useToast() {
     return id;
   }, []);
 
-  const success = useCallback((message, duration = 3000) => {
-    return showToast(message, "success", duration);
-  }, [showToast]);
+  const success = useCallback(
+    (message, duration = 3000) => showToast(message, "success", duration),
+    [showToast]
+  );
+  const error = useCallback(
+    (message, duration = 4000) => showToast(message, "error", duration),
+    [showToast]
+  );
+  const info = useCallback(
+    (message, duration = 3000) => showToast(message, "info", duration),
+    [showToast]
+  );
+  const warning = useCallback(
+    (message, duration = 3500) => showToast(message, "warning", duration),
+    [showToast]
+  );
+  const dismiss = useCallback((id) => toastStore.remove(id), []);
 
-  const error = useCallback((message, duration = 4000) => {
-    return showToast(message, "error", duration);
-  }, [showToast]);
-
-  const info = useCallback((message, duration = 3000) => {
-    return showToast(message, "info", duration);
-  }, [showToast]);
-
-  const warning = useCallback((message, duration = 3500) => {
-    return showToast(message, "warning", duration);
-  }, [showToast]);
-
-  const dismiss = useCallback((id) => {
-    toastStore.remove(id);
-  }, []);
-
-  return { showToast, success, error, info, warning, dismiss, toasts: toastStore.toasts };
+  return { showToast, success, error, info, warning, dismiss, toasts };
 }

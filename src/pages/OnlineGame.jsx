@@ -1,1134 +1,603 @@
-import {
-  useState,
-  useEffect
-} from "react";
-import {
-  doc,
-  updateDoc,
-  onSnapshot
-} from "firebase/firestore";
-
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { doc, onSnapshot, runTransaction } from "firebase/firestore";
 import { db } from "../firebase";
+import { useToast } from "../hooks/useToast";
+import {
+  createRoundState,
+  finishRound,
+  getDisplayName,
+  getHandValue,
+  getNextPlayerIndex,
+  getSettings,
+  playerKey,
+  refillDrawPile
+} from "../utils/onlineGame";
 
-export default function OnlineGame({
-  room,
-  setRoom,
-  setScreen
-}) {
+const panelStyle = {
+  padding: 18,
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.08)",
+  border: "1px solid rgba(255,255,255,0.12)"
+};
 
-  const [selectedCards,
-    setSelectedCards] =
-    useState([]);
-  const [isDeclaring,
-    setIsDeclaring] =
-    useState(false);
-    useEffect(() => {
+const actionButton = (background, disabled = false) => ({
+  padding: "12px 16px",
+  border: 0,
+  borderRadius: 12,
+  background: disabled ? "#555" : background,
+  color: "white",
+  fontWeight: "bold",
+  cursor: disabled ? "not-allowed" : "pointer",
+  opacity: disabled ? 0.65 : 1
+});
 
-  if (!room?.roomCode)
-    return;
+export default function OnlineGame({ room, setRoom, setScreen }) {
+  const [selectedCards, setSelectedCards] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const playerName = localStorage.getItem("playerName") || "";
+  const { warning, error: showError } = useToast();
 
-  const unsubscribe =
-    onSnapshot(
-
-      doc(
-        db,
-        "rooms",
-        room.roomCode
-      ),
-
-      (snapshot) => {
-
-        if (
-          snapshot.exists()
-        ) {
-
-          setRoom(
-            snapshot.data()
-          );
-
-        }
-
+  useEffect(() => {
+    if (!room?.roomCode) return undefined;
+    return onSnapshot(doc(db, "rooms", room.roomCode), (snapshot) => {
+      if (!snapshot.exists()) {
+        setScreen("home");
+        return;
       }
+      setRoom(snapshot.data());
+    });
+  }, [room?.roomCode, setRoom, setScreen]);
 
-    );
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, []);
 
-  return () =>
-    unsubscribe();
+  const roomCode = room?.roomCode;
+  const roomRef = useMemo(
+    () => (roomCode ? doc(db, "rooms", roomCode) : null),
+    [roomCode]
+  );
+  const myCards = room?.hands?.[playerName] || [];
+  const currentPlayer = room?.players?.[room?.currentPlayer];
+  const isMyTurn = playerKey(currentPlayer?.name) === playerName;
+  const isHost = playerKey(room?.host?.name) === playerName;
+  const timeLeft = Math.max(0, Math.ceil(((room?.turnDeadline || now) - now) / 1000));
+  const myCount = getHandValue(myCards, room?.jokerCard?.rank);
 
-}, [
-  room?.roomCode
-]);
-
-  const playerName =
-    localStorage
-      .getItem("playerName")
-      ?.toLowerCase();
-
-  const myCards =
-    room?.hands?.[
-      playerName
-    ] || [];
-  
-  const isMyTurn =
-  room?.players?.[
-    room?.currentPlayer
-  ]?.name?.toLowerCase()
-  === playerName;
-
-  const toggleCard =
-  (index) => {
-
-    if (!isMyTurn)
-  return;
-
-    if (
-      selectedCards.includes(
-        index
-      )
-    ) {
-
-      setSelectedCards(
-        selectedCards.filter(
-          (i) =>
-            i !== index
-        )
-      );
-
-    } else {
-
-      setSelectedCards([
-        ...selectedCards,
-        index
-      ]);
-
-    }
-
-  };
-
-const drawFromDeck =
-  async () => {
-
-    const drawPile =
-      [...room.drawPile];
-
-    const card =
-      drawPile.pop();
-
-    if (!card)
-      return;
-
-    const hands = {
-      ...room.hands
-    };
-
-    hands[playerName] = [
-      ...hands[playerName],
-      card
-    ];
-
-    const nextPlayer =
-      (
-        room.currentPlayer + 1
-      ) %
-      room.players.length;
-
-    await updateDoc(
-      doc(
-        db,
-        "rooms",
-        room.roomCode
-      ),
-      {
-        hands,
-        drawPile,
-        pendingDraw: false,
-        pendingPlayer: null,
-        currentPlayer: nextPlayer
-      }
-    );
-
-  };
-
-const pickOpenCard =
-  async () => {
-
-    const hands = {
-      ...room.hands
-    };
-
-    hands[playerName] = [
-      ...hands[playerName],
-      room.previousOpenCard
-    ];
-
-    const nextPlayer =
-      (
-        room.currentPlayer + 1
-      ) %
-      room.players.length;
-
-    await updateDoc(
-      doc(
-        db,
-        "rooms",
-        room.roomCode
-      ),
-      {
-        hands,
-        pendingDraw: false,
-        pendingPlayer: null,
-        currentPlayer: nextPlayer
-      }
-    );
-
-  };
-
-const playSelectedCards =
-  async () => {
-
-    console.log(
-      "PLAY BUTTON CLICKED"
-    );
-
-    if (!isMyTurn) {
-
-      alert(
-        "Not your turn!"
-      );
-
-      return;
-
-    }
-
-    if (
-      selectedCards.length === 0
-    ) {
-
-      return;
-
-    }
-
-    const selected =
-      selectedCards.map(
-        (index) =>
-          myCards[index]
-      );
-
-    const firstRank =
-      selected[0].rank;
-
-    const allSameRank =
-      selected.every(
-        (card) =>
-          card.rank ===
-          firstRank
-      );
-
-    if (
-      !allSameRank
-    ) {
-
-      alert(
-        "All selected cards must have the same rank"
-      );
-
-      return;
-
-    }
-
-    const openRank =
-      room.openCard.rank;
-
-    const isSlash =
-      firstRank ===
-      openRank;
-
-    const hands = {
-      ...room.hands
-    };
-
-    let updatedHand =
-      [...hands[playerName]];
-
-    selectedCards
-      .sort(
-        (a, b) =>
-          b - a
-      )
-      .forEach(
-        (index) => {
-
-          updatedHand.splice(
-            index,
-            1
-          );
-
-        }
-      );
-
-    hands[playerName] =
-      updatedHand;
-
-    const hasWon =
-    updatedHand.length === 0;
-
-    const newOpenCard =
-      selected[
-        selected.length - 1
-      ];
-
-    const nextPlayer =
-      (
-        room.currentPlayer + 1
-      ) %
-      room.players.length;
-
-    if (isSlash) {
-
-  if (hasWon) {
-    if (hasWon) {
-
-  await updateDoc(
-    doc(
-      db,
-      "rooms",
-      room.roomCode
-    ),
-    {
-      hands,
-      winner: playerName,
-      status: "finished"
-    }
+  const displayTotals = useMemo(
+    () =>
+      (room?.players || []).map((player) => {
+        const key = playerKey(player.name);
+        return {
+          key,
+          name: player.name,
+          cards: room?.handCounts?.[key] ?? room?.hands?.[key]?.length ?? 0,
+          total: room?.totals?.[key] || 0,
+          eliminated: Boolean(room?.eliminated?.[key])
+        };
+      }),
+    [room]
   );
 
-  return;
-
-}
-
-    await updateDoc(
-      doc(
-        db,
-        "rooms",
-        room.roomCode
-      ),
-      {
-        hands,
-        winner: playerName,
-        status: "finished"
-      }
-    );
-
-    return;
-
-  }
-
-  await updateDoc(
-    doc(
-      db,
-      "rooms",
-      room.roomCode
-    ),
-    {
-      hands,
-      openCard: newOpenCard,
-      currentPlayer: nextPlayer
-    }
-  );
-
-}
-
-else {
-
-      await updateDoc(
-
-        doc(
-          db,
-          "rooms",
-          room.roomCode
-        ),
-
-        {
-          hands,
-
-          previousOpenCard:
-            room.openCard,
-
-          openCard:
-            newOpenCard,
-
-          pendingDraw:
-            true,
-
-          pendingPlayer:
-            playerName
-        }
-
-      );
-
-    }
-
-    setSelectedCards([]);
-
-  };
-
-  const getCardValue =
-  (card) => {
-
-    if (!card)
-      return 0;
-
-    if (
-      card.rank ===
-      room?.jokerCard?.rank
-    )
-      return 0;
-
-    if (
-      card.rank === "A"
-    )
-      return 1;
-
-    if (
-      ["J","Q","K"]
-      .includes(card.rank)
-    )
-      return 10;
-
-    return Number(
-      card.rank
-    ) || 0;
-
-  };
-
-const handValue =
-  myCards.reduce(
-    (sum, card) =>
-      sum +
-      getCardValue(
-        card
-      ),
-    0
-  );
-
-  const getPlayerCount =
-  (cards) => {
-
-    return cards.reduce(
-
-      (sum, card) =>
-
-        sum +
-        getCardValue(
-          card
-        ),
-
-      0
-
-    );
-
-  };
-
-const declareLeastCount =
-  async () => {
-
-    if (
-      !isMyTurn ||
-      room?.status !== "playing" ||
-      isDeclaring
-    )
-      return;
-
-    setIsDeclaring(true);
-
-    const results =
-      {};
-
-    Object.entries(
-      room.hands
-    ).forEach(
-
-      ([name, cards]) => {
-
-        results[name] =
-          getPlayerCount(
-            cards
-          );
-
-      }
-
-    );
-
-    const declarerCount =
-      results[playerName];
-
-    const opponentCounts =
-      Object.entries(results)
-        .filter(
-          ([name]) =>
-            name !== playerName
-        )
-        .map(
-          ([, count]) => count
-        );
-
-    const declarationWon =
-      opponentCounts.length === 0 ||
-      opponentCounts.every(
-        (count) =>
-          declarerCount < count
-      );
-
-    const finalScores = {
-      ...results
-    };
-
-    if (!declarationWon) {
-      finalScores[playerName] =
-        declarerCount + 40;
-    }
-
-    const winningScore =
-      Math.min(
-        ...Object.values(
-          finalScores
-        )
-      );
-
-    const winnerNames =
-      Object.entries(finalScores)
-        .filter(
-          ([, count]) =>
-            count === winningScore
-        )
-        .map(
-          ([name]) => name
-        );
-
-    const getDisplayName =
-      (name) =>
-        room.players.find(
-          (player) =>
-            player.name
-              .toLowerCase() ===
-            name
-        )?.name || name;
-
-    const declarationResult = {
-      declarer:
-        getDisplayName(
-          playerName
-        ),
-      declarerKey:
-        playerName,
-      declarationWon,
-      penalty:
-        declarationWon
-          ? 0
-          : 40,
-      scores:
-        finalScores,
-      originalScores:
-        results,
-      winners:
-        winnerNames.map(
-          getDisplayName
-        )
-    };
-
+  const runAction = async (action, fallbackMessage) => {
+    if (!roomRef || busy) return;
+    setBusy(true);
     try {
-      await updateDoc(
-        doc(
-          db,
-          "rooms",
-          room.roomCode
-        ),
-        {
-          status: "finished",
-          winner:
-            declarationResult
-              .winners
-              .join(", "),
-          scores:
-            finalScores,
-          declarationResult
-        }
-      );
-    } catch (error) {
-      console.error(
-        "Failed to declare least count",
-        error
-      );
-      alert(
-        "Could not declare Least Count. Please try again."
-      );
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(roomRef);
+        if (!snapshot.exists()) throw new Error("ROOM_MISSING");
+        const updates = action(snapshot.data());
+        transaction.update(roomRef, updates);
+      });
+    } catch (err) {
+      const messages = {
+        NOT_YOUR_TURN: "It is not your turn",
+        DRAW_REQUIRED: "Choose a card to draw first",
+        INVALID_SELECTION: "Select cards with the same rank",
+        STATE_CHANGED: "The game changed. Please try again",
+        NO_CARD: "There are no cards available to draw",
+        ROOM_MISSING: "This room no longer exists"
+      };
+      showError(messages[err.message] || fallbackMessage);
+      console.error(err);
     } finally {
-      setIsDeclaring(false);
+      setBusy(false);
+    }
+  };
+
+  const assertTurn = (currentRoom, allowPendingDraw = false) => {
+    if (currentRoom.status !== "playing") throw new Error("STATE_CHANGED");
+    const turnPlayer = currentRoom.players?.[currentRoom.currentPlayer];
+    if (playerKey(turnPlayer?.name) !== playerName) throw new Error("NOT_YOUR_TURN");
+    if (!allowPendingDraw && currentRoom.pendingDraw) throw new Error("DRAW_REQUIRED");
+  };
+
+  const playSelectedCards = () => {
+    if (!selectedCards.length) {
+      warning("Select at least one card");
+      return;
     }
 
+    runAction((currentRoom) => {
+      assertTurn(currentRoom);
+      const hand = currentRoom.hands?.[playerName] || [];
+      const indexes = [...selectedCards].sort((a, b) => a - b);
+      if (indexes.some((index) => !hand[index])) throw new Error("STATE_CHANGED");
+
+      const selected = indexes.map((index) => hand[index]);
+      if (!selected.every((card) => card.rank === selected[0].rank)) {
+        throw new Error("INVALID_SELECTION");
+      }
+
+      const hands = { ...currentRoom.hands };
+      hands[playerName] = hand.filter((_, index) => !indexes.includes(index));
+      const newOpenCard = selected[selected.length - 1];
+      const discardPile = [
+        ...(currentRoom.discardPile || []),
+        ...selected.slice(0, -1)
+      ];
+      const handCounts = {
+        ...(currentRoom.handCounts || {}),
+        [playerName]: hands[playerName].length
+      };
+
+      if (hands[playerName].length === 0) {
+        const roundScores = Object.fromEntries(
+          Object.entries(hands).map(([key, cards]) => [
+            key,
+            getHandValue(cards, currentRoom.jokerCard?.rank)
+          ])
+        );
+        return {
+          hands,
+          handCounts,
+          openCard: newOpenCard,
+          discardPile: [...discardPile, currentRoom.openCard].filter(Boolean),
+          ...finishRound(currentRoom, roundScores, {
+            type: "empty-hand",
+            winners: [getDisplayName(currentRoom.players, playerName)]
+          })
+        };
+      }
+
+      const nextPlayer = getNextPlayerIndex(currentRoom);
+      const turnDeadline = Date.now() + getSettings(currentRoom.settings).turnSeconds * 1000;
+      const isSlash = selected[0].rank === currentRoom.openCard?.rank;
+
+      if (isSlash) {
+        return {
+          hands,
+          handCounts,
+          openCard: newOpenCard,
+          discardPile: [...discardPile, currentRoom.openCard].filter(Boolean),
+          previousOpenCard: null,
+          pendingDraw: false,
+          pendingPlayer: null,
+          currentPlayer: nextPlayer,
+          turnDeadline
+        };
+      }
+
+      return {
+        hands,
+        handCounts,
+        openCard: newOpenCard,
+        discardPile,
+        previousOpenCard: currentRoom.openCard,
+        pendingDraw: true,
+        pendingPlayer: playerName,
+        turnDeadline
+      };
+    }, "Could not play those cards");
+    setSelectedCards([]);
   };
+
+  const drawCard = (useOpenCard) => {
+    runAction((currentRoom) => {
+      assertTurn(currentRoom, true);
+      if (!currentRoom.pendingDraw || currentRoom.pendingPlayer !== playerName) {
+        throw new Error("STATE_CHANGED");
+      }
+
+      const hands = { ...currentRoom.hands };
+      const hand = [...(hands[playerName] || [])];
+      let drawPile = [...(currentRoom.drawPile || [])];
+      let discardPile = [...(currentRoom.discardPile || [])];
+      let card = currentRoom.previousOpenCard;
+
+      if (!useOpenCard) {
+        if (card) discardPile.push(card);
+        const refilled = refillDrawPile(drawPile, discardPile);
+        drawPile = refilled.drawPile;
+        discardPile = refilled.discardPile;
+        card = drawPile.pop();
+      }
+      if (!card) throw new Error("NO_CARD");
+
+      hand.push(card);
+      hands[playerName] = hand;
+      const nextPlayer = getNextPlayerIndex(currentRoom);
+      return {
+        hands,
+        handCounts: { ...(currentRoom.handCounts || {}), [playerName]: hand.length },
+        drawPile,
+        discardPile,
+        previousOpenCard: null,
+        pendingDraw: false,
+        pendingPlayer: null,
+        currentPlayer: nextPlayer,
+        turnDeadline:
+          Date.now() + getSettings(currentRoom.settings).turnSeconds * 1000
+      };
+    }, "Could not draw a card");
+  };
+
+  const declareLeastCount = () => {
+    runAction((currentRoom) => {
+      assertTurn(currentRoom);
+      const currentSettings = getSettings(currentRoom.settings);
+      const originalScores = Object.fromEntries(
+        Object.entries(currentRoom.hands || {}).map(([key, cards]) => [
+          key,
+          getHandValue(cards, currentRoom.jokerCard?.rank)
+        ])
+      );
+      const declarerScore = originalScores[playerName];
+      const opponents = Object.entries(originalScores).filter(([key]) => key !== playerName);
+      const declarationWon = opponents.every(([, score]) =>
+        currentSettings.tieBehavior === "declarer-wins"
+          ? declarerScore <= score
+          : declarerScore < score
+      );
+      const roundScores = { ...originalScores };
+      if (!declarationWon) {
+        roundScores[playerName] += currentSettings.declarationPenalty;
+      }
+      const lowest = Math.min(...Object.values(roundScores));
+      const winners = Object.entries(roundScores)
+        .filter(([, score]) => score === lowest)
+        .map(([key]) => getDisplayName(currentRoom.players, key));
+
+      return finishRound(currentRoom, roundScores, {
+        type: "declaration",
+        declarer: getDisplayName(currentRoom.players, playerName),
+        declarerKey: playerName,
+        declarationWon,
+        penalty: declarationWon ? 0 : currentSettings.declarationPenalty,
+        originalScores,
+        winners
+      });
+    }, "Could not declare Least Count");
+  };
+
+  const handleTimeout = useCallback(async () => {
+    if (!roomRef || room?.status !== "playing" || !room?.turnDeadline) return;
+    try {
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(roomRef);
+        if (!snapshot.exists()) return;
+        const currentRoom = snapshot.data();
+        if (
+          currentRoom.status !== "playing" ||
+          currentRoom.turnDeadline !== room.turnDeadline ||
+          Date.now() < currentRoom.turnDeadline
+        ) return;
+
+        const timedOutPlayer = playerKey(
+          currentRoom.players?.[currentRoom.currentPlayer]?.name
+        );
+        const updates = {
+          timeoutCounts: {
+            ...(currentRoom.timeoutCounts || {}),
+            [timedOutPlayer]: (currentRoom.timeoutCounts?.[timedOutPlayer] || 0) + 1
+          },
+          pendingDraw: false,
+          pendingPlayer: null,
+          previousOpenCard: null,
+          currentPlayer: getNextPlayerIndex(currentRoom),
+          turnDeadline:
+            Date.now() + getSettings(currentRoom.settings).turnSeconds * 1000
+        };
+
+        if (currentRoom.pendingDraw && currentRoom.pendingPlayer === timedOutPlayer) {
+          const hands = { ...currentRoom.hands };
+          const hand = [...(hands[timedOutPlayer] || [])];
+          let discardPile = [...(currentRoom.discardPile || [])];
+          let drawPile = [...(currentRoom.drawPile || [])];
+          if (currentRoom.previousOpenCard) discardPile.push(currentRoom.previousOpenCard);
+          const refilled = refillDrawPile(drawPile, discardPile);
+          drawPile = refilled.drawPile;
+          discardPile = refilled.discardPile;
+          const card = drawPile.pop();
+          if (card) hand.push(card);
+          hands[timedOutPlayer] = hand;
+          Object.assign(updates, {
+            hands,
+            handCounts: {
+              ...(currentRoom.handCounts || {}),
+              [timedOutPlayer]: hand.length
+            },
+            drawPile,
+            discardPile
+          });
+        }
+        transaction.update(roomRef, updates);
+      });
+    } catch (err) {
+      console.error("Timeout handling failed", err);
+    }
+  }, [room, roomRef]);
+
+  useEffect(() => {
+    if (timeLeft === 0) handleTimeout();
+  }, [handleTimeout, timeLeft]);
+
+  const startNextRound = () => {
+    runAction((currentRoom) => {
+      if (playerKey(currentRoom.host?.name) !== playerName) throw new Error("NOT_HOST");
+      if (currentRoom.status !== "round-finished") throw new Error("STATE_CHANGED");
+      return createRoundState(currentRoom, (currentRoom.roundNumber || 1) + 1);
+    }, "Only the host can start the next round");
+  };
+
+  const rematch = () => {
+    runAction((currentRoom) => {
+      if (playerKey(currentRoom.host?.name) !== playerName) throw new Error("NOT_HOST");
+      if (currentRoom.status !== "finished") throw new Error("STATE_CHANGED");
+      const resetRoom = {
+        ...currentRoom,
+        eliminated: {},
+        totals: Object.fromEntries(
+          (currentRoom.players || []).map((player) => [playerKey(player.name), 0])
+        )
+      };
+      return {
+        eliminated: {},
+        totals: resetRoom.totals,
+        history: [],
+        timeoutCounts: {},
+        ...createRoundState(resetRoom, 1)
+      };
+    }, "Only the host can start a rematch");
+  };
+
+  const leaveGame = async () => {
+    if (roomRef) {
+      try {
+        await runTransaction(db, async (transaction) => {
+          const snapshot = await transaction.get(roomRef);
+          if (!snapshot.exists()) return;
+          const currentRoom = snapshot.data();
+          const players = (currentRoom.players || []).filter(
+            (player) => playerKey(player.name) !== playerName
+          );
+          const updates = {
+            players,
+            eliminated: { ...(currentRoom.eliminated || {}), [playerName]: true }
+          };
+          if (playerKey(currentRoom.host?.name) === playerName && players.length) {
+            updates.host = players[0];
+          }
+          if (playerKey(currentRoom.players?.[currentRoom.currentPlayer]?.name) === playerName) {
+            updates.currentPlayer = getNextPlayerIndex({
+              ...currentRoom,
+              eliminated: updates.eliminated
+            });
+            updates.turnDeadline =
+              Date.now() + getSettings(currentRoom.settings).turnSeconds * 1000;
+          }
+          transaction.update(roomRef, updates);
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    setRoom(null);
+    setScreen("home");
+  };
+
+  const result = room?.roundResult;
+  const isRoundOver = room?.status === "round-finished" || room?.status === "finished";
 
   return (
-
     <div
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(180deg,#0f0f0f,#170028,#001f3f)",
+        background: "linear-gradient(180deg,#0f0f0f,#170028,#001f3f)",
         color: "white",
         padding: 20
       }}
     >
+      <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <div>
+            <h1 style={{ marginBottom: 4 }}>Least Count Online</h1>
+            <div style={{ color: "#c084fc" }}>Round {room?.roundNumber || 1}</div>
+          </div>
+          <button onClick={leaveGame} style={actionButton("#444")}>Leave</button>
+        </div>
 
-      <h1
-        style={{
-          textAlign:
-            "center"
-        }}
-      >
-        🎴 Least Count Online
-      </h1>
-      {
-  room?.status ===
-    "finished" && (
+        {isRoundOver && (
+          <section style={{ ...panelStyle, marginTop: 20, borderColor: "#00b894" }}>
+            <h2 style={{ marginTop: 0 }}>
+              {room.status === "finished"
+                ? `Match Winner: ${room.matchWinner || room.winner}`
+                : `Round Winner: ${room.winner}`}
+            </h2>
+            {result?.type === "declaration" && (
+              <p style={{ color: result.declarationWon ? "#00ff88" : "#ff7675" }}>
+                {result.declarer} {result.declarationWon ? "won" : "lost"} the declaration
+                {result.penalty ? ` and received ${result.penalty} penalty points` : ""}.
+              </p>
+            )}
+            <ScoreRows room={room} scores={result?.scores || room?.scores} />
+            {room.status === "round-finished" && isHost && (
+              <button onClick={startNextRound} disabled={busy} style={actionButton("#6c5ce7", busy)}>
+                Start Next Round
+              </button>
+            )}
+            {room.status === "finished" && isHost && (
+              <button onClick={rematch} disabled={busy} style={actionButton("#ff00c8", busy)}>
+                Rematch
+              </button>
+            )}
+            {!isHost && <p style={{ color: "#aaa" }}>Waiting for the host...</p>}
+          </section>
+        )}
 
-    <div
-      style={{
-        background:
-          "#00b894",
-        padding: 20,
-        borderRadius: 12,
-        textAlign:
-          "center",
-        marginBottom: 20
-      }}
-    >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+            gap: 16,
+            marginTop: 20
+          }}
+        >
+          <section style={panelStyle}>
+            <div style={{ color: "#aaa" }}>Joker</div>
+            <h2>{room?.jokerCard?.rank}{room?.jokerCard?.suit}</h2>
+          </section>
+          <section style={panelStyle}>
+            <div style={{ color: "#aaa" }}>Open Card</div>
+            <h2>{room?.openCard?.rank}{room?.openCard?.suit}</h2>
+          </section>
+          <section style={panelStyle}>
+            <div style={{ color: "#aaa" }}>Turn</div>
+            <h2>{currentPlayer?.name || "-"}</h2>
+            {room?.status === "playing" && (
+              <div style={{ color: timeLeft <= 5 ? "#ff7675" : "#00e5ff" }}>
+                {timeLeft}s remaining
+              </div>
+            )}
+          </section>
+        </div>
 
-      🏆 Winner:
-      {" "}
-      {room?.winner}
-
-    </div>
-
-  )
-}
-      {
-        room?.declarationResult && (
-          <div
-            style={{
-              maxWidth: 520,
-              margin:
-                "0 auto 20px",
-              padding: 20,
-              borderRadius: 12,
-              background:
-                room
-                  .declarationResult
-                  .declarationWon
-                  ? "rgba(0,184,148,0.2)"
-                  : "rgba(214,48,49,0.2)",
-              border:
-                room
-                  .declarationResult
-                  .declarationWon
-                  ? "1px solid #00b894"
-                  : "1px solid #d63031"
-            }}
-          >
-            <h2
+        <section style={{ ...panelStyle, marginTop: 20 }}>
+          <h2>Players</h2>
+          {displayTotals.map((player) => (
+            <div
+              key={player.key}
               style={{
-                marginTop: 0,
-                textAlign:
-                  "center"
+                display: "grid",
+                gridTemplateColumns: "1fr auto auto",
+                gap: 16,
+                padding: "10px 0",
+                borderBottom: "1px solid rgba(255,255,255,0.1)",
+                opacity: player.eliminated ? 0.5 : 1
               }}
             >
-              {
-                room
-                  .declarationResult
-                  .declarationWon
-                  ? `${room.declarationResult.declarer} won the declaration`
-                  : `${room.declarationResult.declarer} lost the declaration`
-              }
-            </h2>
+              <span>{player.name}{player.eliminated ? " (eliminated)" : ""}</span>
+              <span>{player.cards} cards</span>
+              <strong>{player.total} pts</strong>
+            </div>
+          ))}
+        </section>
 
-            {
-              !room
-                .declarationResult
-                .declarationWon && (
-                <p
-                  style={{
-                    color:
-                      "#ff7675",
-                    fontWeight:
-                      "bold",
-                    textAlign:
-                      "center"
-                  }}
+        {!isRoundOver && (
+          <section style={{ ...panelStyle, marginTop: 20 }}>
+            <div style={{ color: "#00ff88", fontWeight: "bold", marginBottom: 14 }}>
+              Your count: {myCount}
+            </div>
+
+            {room?.pendingDraw && room?.pendingPlayer === playerName && (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+                <button onClick={() => drawCard(false)} disabled={busy} style={actionButton("#00b894", busy)}>
+                  Draw From Deck
+                </button>
+                <button
+                  onClick={() => drawCard(true)}
+                  disabled={busy || !room.previousOpenCard}
+                  style={actionButton("#0984e3", busy || !room.previousOpenCard)}
                 >
-                  40-point penalty applied
-                </p>
-              )
-            }
+                  Pick Previous Open Card
+                </button>
+              </div>
+            )}
 
-            {
-              Object.entries(
-                room
-                  .declarationResult
-                  .scores
-              ).map(
-                ([name, score]) => (
-                  <div
-                    key={name}
+            {isMyTurn && !room?.pendingDraw && (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+                <button
+                  onClick={playSelectedCards}
+                  disabled={busy || !selectedCards.length}
+                  style={actionButton("#ff00c8", busy || !selectedCards.length)}
+                >
+                  Play Selected
+                </button>
+                <button onClick={declareLeastCount} disabled={busy} style={actionButton("#f39c12", busy)}>
+                  Declare Least Count
+                </button>
+              </div>
+            )}
+
+            <h2>Your Hand</h2>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+              {myCards.map((card, index) => {
+                const selected = selectedCards.includes(index);
+                return (
+                  <button
+                    key={`${card.rank}-${card.suit || "joker"}-${index}`}
+                    onClick={() => {
+                      if (!isMyTurn || room?.pendingDraw) return;
+                      setSelectedCards((current) =>
+                        current.includes(index)
+                          ? current.filter((cardIndex) => cardIndex !== index)
+                          : [...current, index]
+                      );
+                    }}
                     style={{
-                      display:
-                        "flex",
-                      justifyContent:
-                        "space-between",
-                      padding:
-                        "8px 0",
-                      borderBottom:
-                        "1px solid rgba(255,255,255,0.12)"
+                      width: 82,
+                      height: 118,
+                      borderRadius: 12,
+                      border: selected ? "3px solid #00e5ff" : "1px solid #ddd",
+                      background: "white",
+                      color: "black",
+                      fontSize: 18,
+                      fontWeight: "bold",
+                      transform: selected ? "translateY(-8px)" : "none",
+                      cursor: isMyTurn ? "pointer" : "default"
                     }}
                   >
-                    <span>
-                      {
-                        room.players.find(
-                          (player) =>
-                            player.name
-                              .toLowerCase() ===
-                            name
-                        )?.name ||
-                        name
-                      }
-                    </span>
-                    <strong>
-                      {score}
-                      {
-                        name ===
-                          room
-                            .declarationResult
-                            .declarerKey &&
-                        room
-                          .declarationResult
-                          .penalty > 0
-                          ? " (includes penalty)"
-                          : ""
-                      }
-                    </strong>
-                  </div>
-                )
-              )
-            }
-          </div>
-        )
-      }
+                    {card.rank}{card.suit}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent:
-            "center",
-          gap: 20,
-          marginTop: 20
-        }}
-      >
-
-        <div
-          style={{
-            padding: 20,
-            borderRadius: 16,
-            background:
-              "rgba(255,255,255,0.08)",
-            minWidth: 150,
-            textAlign:
-              "center"
-          }}
-        >
-
-          <div>
-            🃏 Joker
-          </div>
-
-          <h2>
-            {room?.jokerCard?.rank}
-            {room?.jokerCard?.suit}
-          </h2>
-
+        <div style={{ marginTop: 14, color: "#888", fontSize: 12 }}>
+          Opponent cards are shown only as counts. Secure card secrecy requires authenticated
+          per-player Firestore documents and matching security rules.
         </div>
-
-        <div
-          style={{
-            padding: 20,
-            borderRadius: 16,
-            background:
-              "rgba(255,255,255,0.08)",
-            minWidth: 150,
-            textAlign:
-              "center"
-          }}
-        >
-
-          <div>
-            🎴 Open Card
-          </div>
-
-          <h2>
-            {room?.openCard?.rank}
-            {room?.openCard?.suit}
-          </h2>
-
-        </div>
-
       </div>
-
-      <h2
-  style={{
-    textAlign: "center",
-    marginTop: 20,
-    color:
-      isMyTurn
-        ? "#00ff88"
-        : "#00e5ff"
-  }}
->
-  {
-    isMyTurn
-      ? "🟢 Your Turn"
-      : `⏳ Waiting for ${
-          room?.players?.[
-            room?.currentPlayer
-          ]?.name
-        }`
-  }
-</h2>
-
-      <div
-        style={{
-          marginTop: 30
-        }}
-      >
-
-        <h2>
-          👥 Players
-        </h2>
-
-        {
-          room?.players?.map(
-            (
-              player,
-              index
-            ) => (
-
-              <div
-                key={index}
-                style={{
-                  padding: 12,
-                  marginBottom: 10,
-                  borderRadius: 12,
-                  background:
-                    "rgba(255,255,255,0.08)"
-                }}
-              >
-
-                {player.name}
-
-              </div>
-
-            )
-          )
-        }
-
-      </div>
-
-      <div
-  style={{
-    marginTop: 40
-  }}
->
-
-  {
-    room?.pendingDraw &&
-    room?.pendingPlayer ===
-      playerName && (
-
-      <div
-        style={{
-          marginTop: 20,
-          marginBottom: 20
-        }}
-      >
-
-        <button
-          onClick={
-            drawFromDeck
-          }
-          style={{
-            padding: 12,
-            border: "none",
-            borderRadius: 12,
-            background: "#00b894",
-            color: "white",
-            cursor: "pointer"
-          }}
-        >
-          🂠 Draw From Deck
-        </button>
-
-        <button
-          onClick={
-            pickOpenCard
-          }
-          style={{
-            padding: 12,
-            border: "none",
-            borderRadius: 12,
-            background: "#0984e3",
-            color: "white",
-            cursor: "pointer",
-            marginLeft: 10
-          }}
-        >
-          🎴 Pick Open Card
-        </button>
-
-      </div>
-
-    )
-  }
-  <div
-  style={{
-    color: "#00ff88",
-    fontWeight: "bold",
-    marginBottom: 10,
-    fontSize: 18
-  }}
->
-  📊 Current Count:
-  {" "}
-  {handValue}
-</div>
-{
-  isMyTurn &&
-  room?.status === "playing" && (
-
-    <button
-
-      onClick={
-        declareLeastCount
-      }
-
-      disabled={
-        isDeclaring
-      }
-
-      style={{
-
-        padding: 12,
-
-        border: "none",
-
-        borderRadius: 12,
-
-        background:
-          "#f39c12",
-
-        color: "white",
-
-        fontWeight:
-          "bold",
-
-        cursor:
-          isDeclaring
-            ? "not-allowed"
-            : "pointer",
-
-        marginBottom: 15,
-
-        opacity:
-          isDeclaring
-            ? 0.65
-            : 1
-
-      }}
-    >
-
-      📢 Declare Least Count
-
-    </button>
-
-  )
+    </div>
+  );
 }
 
-  <h2
-    style={{
-      marginTop: 20
-    }}
-  >
-    ✋ Your Hand
-  </h2>
-
-  {selectedCards.length > 0 && (
-
-  <div
-    style={{
-      marginBottom: 20,
-      color: "#00e5ff",
-      fontWeight: "bold",
-      display: "flex",
-      alignItems: "center",
-      gap: 15
-    }}
-  >
-
-    <span>
-      Selected:
-      {" "}
-      {selectedCards.length}
-      {" "}
-      card(s)
-    </span>
-
-    <button
-
-      onClick={playSelectedCards}
-
-      disabled={!isMyTurn}
-
-      style={{
-
-        padding: 12,
-
-        border: "none",
-
-        borderRadius: 12,
-
-        background:
-          isMyTurn
-            ? "#ff00c8"
-            : "#555",
-
-        color: "white",
-
-        fontWeight: "bold",
-
-        cursor: "pointer"
-
-      }}
-    >
-
-      ▶ Play Selected Cards
-
-    </button>
-
-  </div>
-
-)}
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 12
-          }}
-        >
-
-          {
-            myCards.map(
-              (
-                card,
-                index
-              ) => (
-
-                <div
-
-                  key={index}
-
-                  onClick={() =>
-                    toggleCard(
-                      index
-                    )
-                  }
-
-                  style={{
-
-                    width: 90,
-                    height: 130,
-
-                    background:
-                      selectedCards.includes(
-                        index
-                      )
-                        ? "#00e5ff"
-                        : "white",
-
-                    color:
-                      "black",
-
-                    borderRadius: 12,
-
-                    display: "flex",
-
-                    flexDirection:
-                      "column",
-
-                    justifyContent:
-                      "space-between",
-
-                    padding: 10,
-
-                    fontWeight:
-                      "bold",
-
-                    cursor:
-                      "pointer",
-
-                    transform:
-                      selectedCards.includes(
-                        index
-                      )
-                        ? "translateY(-10px)"
-                        : "none",
-
-                    transition:
-                      "0.2s"
-                  }}
-
-                >
-
-                  <div>
-                    {card.rank}
-                    {card.suit}
-                  </div>
-
-                  <div
-                    style={{
-                      textAlign:
-                        "center",
-                      fontSize: 28
-                    }}
-                  >
-                    {card.suit}
-                  </div>
-
-                  <div
-                    style={{
-                      textAlign:
-                        "right"
-                    }}
-                  >
-                    {card.rank}
-                  </div>
-
-                </div>
-
-              )
-            )
-          }
-
-        </div>
-
-      </div>
-
+function ScoreRows({ room, scores = {} }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {(room?.players || []).map((player) => {
+        const key = playerKey(player.name);
+        return (
+          <div
+            key={key}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              padding: "8px 0",
+              borderBottom: "1px solid rgba(255,255,255,0.1)"
+            }}
+          >
+            <span>{player.name}</span>
+            <span>
+              Round {scores?.[key] || 0} | Total {room?.totals?.[key] || 0}
+            </span>
+          </div>
+        );
+      })}
     </div>
-
   );
-
 }
