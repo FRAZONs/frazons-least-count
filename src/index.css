@@ -235,3 +235,76 @@ button:hover {
   box-shadow:
     0 0 22px rgba(0,229,255,0.45);
 }
+
+/* Mobile Responsiveness */
+
+@media (max-width: 1024px) {
+  h1 {
+    font-size: 44px;
+  }
+
+  :root {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  h1 {
+    font-size: 36px;
+  }
+
+  h2 {
+    font-size: 20px;
+  }
+
+  :root {
+    font-size: 15px;
+  }
+
+  #root {
+    padding: 16px;
+  }
+
+  button {
+    padding: 14px 20px !important;
+    font-size: 16px !important;
+    min-height: 44px;
+  }
+
+  input, select {
+    font-size: 16px !important;
+    min-height: 44px;
+    padding: 12px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 28px;
+    letter-spacing: 0;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  :root {
+    font-size: 14px;
+  }
+
+  #root {
+    padding: 12px;
+  }
+
+  button {
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    min-height: 44px;
+  }
+
+  input, select {
+    font-size: 16px !important;
+    min-height: 44px;
+    padding: 10px !important;
+  }
+}
