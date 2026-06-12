@@ -236,6 +236,10 @@ button:hover {
     0 0 22px rgba(0,229,255,0.45);
 }
 
+button:active {
+  transform: scale(0.98);
+}
+
 /* Mobile Responsiveness */
 
 @media (max-width: 1024px) {

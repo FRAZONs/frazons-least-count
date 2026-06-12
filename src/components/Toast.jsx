@@ -50,7 +50,8 @@ export default function Toast({ toast, onDismiss }) {
         backdropFilter: "blur(10px)",
         maxWidth: 400,
         wordBreak: "break-word",
-        animation: "slideIn 0.3s ease-out"
+        animation: "slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        transition: "all 0.2s ease"
       }}
     >
       <span style={{ fontSize: 16, flexShrink: 0 }}>{colors.icon}</span>
@@ -64,7 +65,8 @@ export default function Toast({ toast, onDismiss }) {
           cursor: "pointer",
           fontSize: 18,
           padding: 0,
-          flexShrink: 0
+          flexShrink: 0,
+          transition: "opacity 0.2s ease"
         }}
       >
         ✕
