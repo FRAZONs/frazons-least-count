@@ -413,8 +413,9 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
     if (!allowPendingDraw && currentRoom.pendingDraw) throw new Error("DRAW_REQUIRED");
   };
 
-  const playSelectedCards = () => {
-    if (!selectedCards.length) {
+  const playSelectedCards = (customIndexes) => {
+    const indexesToUse = customIndexes || selectedCards;
+    if (!indexesToUse.length) {
       warning("Select at least one card");
       return;
     }
@@ -422,7 +423,7 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
     runAction((currentRoom) => {
       assertTurn(currentRoom);
       const hand = currentRoom.hands?.[playerName] || [];
-      const indexes = [...selectedCards].sort((a, b) => a - b);
+      const indexes = [...indexesToUse].sort((a, b) => a - b);
       if (indexes.some((index) => !hand[index])) throw new Error("STATE_CHANGED");
 
       const selected = indexes.map((index) => hand[index]);
@@ -533,13 +534,20 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
     }, "Could not draw a card");
   };
 
-  const handlePlaySelected = () => {
-    if (!selectedCards.length || busy) return;
+  const handlePlayCards = (indexes) => {
+    if (!indexes.length || busy) return;
+
+    const hand = room?.hands?.[playerName] || [];
+    const selected = indexes.map((idx) => hand[idx]);
+    if (!selected.every((card) => card.rank === selected[0].rank)) {
+      warning("Select cards of the same rank");
+      return;
+    }
 
     const targetEl = discardRef.current;
     const animatedList = [];
 
-    selectedCards.forEach((cardIdx) => {
+    indexes.forEach((cardIdx) => {
       const cardEl = handCardRefs.current[cardIdx];
       if (cardEl && targetEl) {
         const startRect = cardEl.getBoundingClientRect();
@@ -573,7 +581,11 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
       playCardPlaySound();
     }
 
-    playSelectedCards();
+    playSelectedCards(indexes);
+  };
+
+  const handlePlaySelected = () => {
+    handlePlayCards(selectedCards);
   };
 
   const handleDraw = (useOpenCard) => {
@@ -906,11 +918,41 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
               <div style={{ fontWeight: "bold", color: isMyTurn ? "#00e5ff" : "#fff", fontSize: 15, background: isMyTurn ? "rgba(0,229,255,0.15)" : "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8, border: isMyTurn ? "1px solid rgba(0,229,255,0.3)" : "1px solid rgba(255,255,255,0.1)" }}>
                 {isMyTurn ? "👉 Your Turn" : `${currentPlayer?.name || "-"}'s Turn`}
               </div>
-              {room?.status === "playing" && (
-                <div style={{ color: timeLeft <= 5 ? "#ff7675" : "#00e5ff", fontWeight: "bold", fontSize: 15 }}>
-                  ⏱️ {timeLeft}s
-                </div>
-              )}
+              {room?.status === "playing" && (() => {
+                const totalTurnTime = room?.settings?.turnSeconds || 30;
+                const percentage = (timeLeft / totalTurnTime) * 100;
+                const strokeDashoffset = 113.1 - (113.1 * percentage) / 100;
+                const timerColor = timeLeft <= 5 ? "#ff7675" : timeLeft <= 10 ? "#fbbf24" : "#00ff88";
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.04)", padding: "4px 8px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <svg width="20" height="20" viewBox="0 0 40 40" style={{ transform: "rotate(-90deg)" }}>
+                      <circle
+                        cx="20"
+                        cy="20"
+                        r="18"
+                        fill="transparent"
+                        stroke="rgba(255,255,255,0.08)"
+                        strokeWidth="4"
+                      />
+                      <circle
+                        cx="20"
+                        cy="20"
+                        r="18"
+                        fill="transparent"
+                        stroke={timerColor}
+                        strokeWidth="4"
+                        strokeDasharray="113.1"
+                        strokeDashoffset={strokeDashoffset}
+                        strokeLinecap="round"
+                        style={{ transition: "stroke-dashoffset 0.5s linear, stroke 0.5s ease" }}
+                      />
+                    </svg>
+                    <span style={{ color: timerColor, fontWeight: "bold", fontSize: 13, fontFamily: "monospace", minWidth: 26, textAlign: "center" }}>
+                      {timeLeft}s
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -1474,6 +1516,15 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
                           : `rotate(${rot}deg) translateY(${ty}px) translateX(${tx}px) translateZ(0)`
                       }}
                       size={isMobile ? "sm" : "md"}
+                      draggable={isMyTurn && !room?.pendingDraw}
+                      onDragEnd={(event, info) => {
+                        if (info.offset.y < -80) {
+                          const toPlay = selectedCards.includes(originalIndex)
+                            ? selectedCards
+                            : [originalIndex];
+                          handlePlayCards(toPlay);
+                        }
+                      }}
                     />
                   </motion.div>
                 );

@@ -425,12 +425,12 @@ export default function PracticeGame({ setScreen }) {
   };
 
   // Human player playing actions
-  const playSelected = () => {
-    if (!selectedCards.length || pendingDraw) return;
+  const playCardWithIndexes = (indexes) => {
+    if (!indexes.length || pendingDraw) return;
 
     // Validate rank matching
     const hand = hands.player;
-    const selected = selectedCards.map((idx) => hand[idx]);
+    const selected = indexes.map((idx) => hand[idx]);
     if (!selected.every((card) => card.rank === selected[0].rank)) {
       alert("Invalid Selection! Select cards of the same rank.");
       return;
@@ -439,7 +439,7 @@ export default function PracticeGame({ setScreen }) {
     playCardPlaySound();
 
     const playedCard = selected[selected.length - 1];
-    const newHand = hand.filter((_, idx) => !selectedCards.includes(idx));
+    const newHand = hand.filter((_, idx) => !indexes.includes(idx));
     const nextDiscard = [...discardPile, ...selected.slice(0, -1)];
     
     // Log player ending count for stats
@@ -486,6 +486,10 @@ export default function PracticeGame({ setScreen }) {
       setPendingPlayer("player");
       setSelectedCards([]);
     }
+  };
+
+  const playSelected = () => {
+    playCardWithIndexes(selectedCards);
   };
 
   const drawCardLocal = (useOpenCard) => {
@@ -571,7 +575,18 @@ export default function PracticeGame({ setScreen }) {
       const botScore = getHandValue(hand, jokerCard?.rank);
 
       // 1. Declare Least Count?
-      const threshold = Math.min(bot.personality === "safe" ? 5 : 2, declarationThreshold);
+      const otherPlayersCounts = Object.entries(hands)
+        .filter(([key]) => key !== activeBotKey)
+        .map(([, h]) => h.length);
+      const minOpponentCards = Math.min(...otherPlayersCounts);
+
+      let threshold = Math.min(bot.personality === "safe" ? 5 : 2, declarationThreshold);
+      if (minOpponentCards === 1) {
+        threshold = Math.min(bot.personality === "safe" ? 14 : 10, declarationThreshold);
+      } else if (minOpponentCards === 2) {
+        threshold = Math.min(bot.personality === "safe" ? 8 : 5, declarationThreshold);
+      }
+
       if (botScore <= threshold && !pendingDraw) {
         // Perform declaration!
         const originalScores = {
@@ -674,14 +689,18 @@ export default function PracticeGame({ setScreen }) {
         }
       });
 
-      if (!bestGroup || bestGroup.length === 0) return;
+      // Prioritize slashing (matching open discard rank) to skip draw
+      const slashingGroup = openCard ? groups[openCard.rank] : null;
+      const groupToPlay = (slashingGroup && slashingGroup.length > 0) ? slashingGroup : bestGroup;
+
+      if (!groupToPlay || groupToPlay.length === 0) return;
 
       playCardPlaySound();
 
-      const playedCard = bestGroup[bestGroup.length - 1].card;
-      const indexesToPlay = bestGroup.map((item) => item.idx);
+      const playedCard = groupToPlay[groupToPlay.length - 1].card;
+      const indexesToPlay = groupToPlay.map((item) => item.idx);
       const remainingHand = hand.filter((_, idx) => !indexesToPlay.includes(idx));
-      const nextDiscard = [...discardPile, ...bestGroup.slice(0, -1).map((item) => item.card)];
+      const nextDiscard = [...discardPile, ...groupToPlay.slice(0, -1).map((item) => item.card)];
 
       if (remainingHand.length === 0) {
         // Bot Empty Hand round win
@@ -1369,6 +1388,15 @@ export default function PracticeGame({ setScreen }) {
                           : `rotate(${rot}deg) translateY(${ty}px) translateX(${tx}px) translateZ(0)`
                       }}
                       size={isMobile ? "sm" : "md"}
+                      draggable={isMyTurn && !pendingDraw}
+                      onDragEnd={(event, info) => {
+                        if (info.offset.y < -80) {
+                          const toPlay = selectedCards.includes(originalIndex)
+                            ? selectedCards
+                            : [originalIndex];
+                          playCardWithIndexes(toPlay);
+                        }
+                      }}
                     />
                   </motion.div>
                 );

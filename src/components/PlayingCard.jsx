@@ -24,7 +24,10 @@ export default function PlayingCard({
   badge = null,
   disabled = false,
   innerRef = null,
-  size = "md"
+  size = "md",
+  draggable = false,
+  onDragEnd = null,
+  dragConstraints = null
 }) {
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const isJoker = card?.rank === "JOKER";
@@ -45,6 +48,52 @@ export default function PlayingCard({
     setTilt({ x: 0, y: 0 });
   };
 
+  const cardBackTheme = localStorage.getItem("frazons-card-back") || "neon-cyber";
+
+  const getCardBackStyles = () => {
+    switch (cardBackTheme) {
+      case "classic-royal":
+        return {
+          bg: "linear-gradient(135deg, #5c0612 0%, #1a0104 100%)",
+          border: "2px solid #fbbf24",
+          innerBorder: "1px dashed rgba(251, 191, 36, 0.4)",
+          glow: "inset 0 0 16px rgba(251, 191, 36, 0.25)",
+          color: "#fbbf24",
+          symbol: "👑"
+        };
+      case "retro-pixel":
+        return {
+          bg: "linear-gradient(135deg, #1e0b36 0%, #06020c 100%)",
+          border: "2px solid #a855f7",
+          innerBorder: "1px dashed rgba(168, 85, 247, 0.4)",
+          glow: "inset 0 0 16px rgba(168, 85, 247, 0.25)",
+          color: "#a855f7",
+          symbol: "👾"
+        };
+      case "forest-green":
+        return {
+          bg: "linear-gradient(135deg, #0f3d1b 0%, #031407 100%)",
+          border: "2px solid #cbd5e1",
+          innerBorder: "1px dashed rgba(255, 255, 255, 0.2)",
+          glow: "inset 0 0 16px rgba(0, 255, 136, 0.15)",
+          color: "#00ff88",
+          symbol: "🍀"
+        };
+      case "neon-cyber":
+      default:
+        return {
+          bg: "linear-gradient(135deg, #1e1b4b 0%, #090514 100%)",
+          border: "2px solid rgba(0, 229, 255, 0.4)",
+          innerBorder: "1px dashed rgba(192, 132, 252, 0.3)",
+          glow: "inset 0 0 16px rgba(0, 229, 255, 0.25)",
+          color: "#00e5ff",
+          symbol: "🎴"
+        };
+    }
+  };
+
+  const themeStyle = getCardBackStyles();
+
   // Face-down design with high-quality futuristic patterns to match the theme
   const cardBack = (
     <div
@@ -52,9 +101,9 @@ export default function PlayingCard({
         width: "100%",
         height: "100%",
         borderRadius: s.borderRadius,
-        background: "linear-gradient(135deg, #1e1b4b 0%, #090514 100%)",
-        border: size === "mini" ? "1px solid rgba(0, 229, 255, 0.4)" : "2px solid rgba(0, 229, 255, 0.4)",
-        boxShadow: size === "mini" ? "none" : "inset 0 0 16px rgba(0, 229, 255, 0.25), 0 4px 12px rgba(0,0,0,0.5)",
+        background: themeStyle.bg,
+        border: size === "mini" ? themeStyle.border.replace("2px", "1px") : themeStyle.border,
+        boxShadow: size === "mini" ? "none" : `${themeStyle.glow}, 0 4px 12px rgba(0,0,0,0.5)`,
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -69,7 +118,7 @@ export default function PlayingCard({
           style={{
             position: "absolute",
             inset: size === "sm" ? 4 : 6,
-            border: "1px dashed rgba(192, 132, 252, 0.3)",
+            border: themeStyle.innerBorder,
             borderRadius: s.borderRadius - 2
           }}
         />
@@ -78,13 +127,13 @@ export default function PlayingCard({
       <div
         style={{
           fontSize: size === "mini" ? 14 : size === "sm" ? 20 : 28,
-          color: "#00e5ff",
-          textShadow: "0 0 10px rgba(0, 229, 255, 0.8)",
+          color: themeStyle.color,
+          textShadow: `0 0 10px ${themeStyle.color}`,
           fontFamily: "serif",
           zIndex: 2
         }}
       >
-        🎴
+        {themeStyle.symbol}
       </div>
     </div>
   );
@@ -193,9 +242,18 @@ export default function PlayingCard({
           onClick();
         }
       }}
-      whileHover={hoverable && !disabled ? { scale: 1.06, y: selected ? -20 : -6, zIndex: 10 } : {}}
+      whileHover={hoverable && !disabled ? (draggable ? { scale: 1.06, zIndex: 10 } : { scale: 1.06, y: selected ? -20 : -6, zIndex: 10 }) : {}}
       whileTap={hoverable && !disabled ? { scale: 0.96 } : {}}
       style={finalStyle}
+      drag={draggable ? "y" : false}
+      dragConstraints={dragConstraints || { top: -300, bottom: 0, left: 0, right: 0 }}
+      dragElastic={0.25}
+      dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
+      onDragEnd={(event, info) => {
+        if (draggable && onDragEnd) {
+          onDragEnd(event, info);
+        }
+      }}
     >
       {isFaceUp ? cardFront : cardBack}
 

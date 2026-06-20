@@ -19,6 +19,16 @@ function getFxVolume() {
   }
 }
 
+export function triggerHapticFeedback(pattern = 15) {
+  try {
+    if (navigator.vibrate) {
+      navigator.vibrate(pattern);
+    }
+  } catch (e) {
+    console.warn("Haptic feedback not supported or blocked", e);
+  }
+}
+
 /**
  * Synthesizes a card draw/swish sound (fast frequency ramp down)
  */
@@ -26,6 +36,8 @@ export function playCardDrawSound() {
   try {
     const fxVol = getFxVolume();
     if (fxVol <= 0) return;
+
+    triggerHapticFeedback(12);
 
     const ctx = getAudioContext();
     const now = ctx.currentTime;
@@ -59,6 +71,8 @@ export function playCardPlaySound() {
     const fxVol = getFxVolume();
     if (fxVol <= 0) return;
 
+    triggerHapticFeedback([18, 12]);
+
     const ctx = getAudioContext();
     const now = ctx.currentTime;
 
@@ -91,6 +105,8 @@ export function playCardSelectSound() {
     const fxVol = getFxVolume();
     if (fxVol <= 0) return;
 
+    triggerHapticFeedback(8);
+
     const ctx = getAudioContext();
     const now = ctx.currentTime;
 
@@ -121,6 +137,8 @@ export function playEmojiSound() {
   try {
     const fxVol = getFxVolume();
     if (fxVol <= 0) return;
+
+    triggerHapticFeedback(15);
 
     const ctx = getAudioContext();
     const now = ctx.currentTime;
@@ -229,6 +247,8 @@ export function playQuickChatSound() {
   try {
     const fxVol = getFxVolume();
     if (fxVol <= 0) return;
+
+    triggerHapticFeedback(15);
 
     const ctx = getAudioContext();
     const now = ctx.currentTime;

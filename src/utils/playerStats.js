@@ -106,3 +106,17 @@ export function updateLocalStats(updates) {
     console.error("Error updating local stats:", e);
   }
 }
+
+export function getCareerPoints() {
+  try {
+    const saved = localStorage.getItem("frazons-career-stats");
+    if (!saved) return 0;
+    const stats = JSON.parse(saved);
+    const onlineWins = Number(stats.onlineMatchesWon) || 0;
+    const offlineWins = Number(stats.offlineMatchesWon) || 0;
+    const rounds = Number(stats.totalRoundsPlayed) || 0;
+    return (onlineWins * 150) + (offlineWins * 50) + (rounds * 5);
+  } catch {
+    return 0;
+  }
+}

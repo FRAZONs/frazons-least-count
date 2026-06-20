@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { STORAGE_KEYS, BUTTON_STYLES, HOME_PAGE_STYLE } from "../constants";
+import CustomizationsModal from "../components/CustomizationsModal";
 
 export default function Home({ setScreen }) {
+  const [showCustomize, setShowCustomize] = useState(false);
   const hasSave = localStorage.getItem(STORAGE_KEYS.players);
 
   const clearStorage = () => {
@@ -241,6 +244,39 @@ export default function Home({ setScreen }) {
             🏆 Leaderboard
           </button>
         </div>
+
+        <button
+          onClick={() => setShowCustomize(true)}
+          style={{
+            width: "100%",
+            background: "rgba(255, 0, 200, 0.08)",
+            border: "1px solid rgba(255, 0, 200, 0.25)",
+            color: "#f472b6",
+            padding: "12px 14px",
+            borderRadius: 14,
+            fontSize: 13,
+            fontWeight: "bold",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            transition: "all 0.2s ease",
+            marginTop: 12
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(255, 0, 200, 0.15)";
+            e.currentTarget.style.borderColor = "rgba(255, 0, 200, 0.5)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "rgba(255, 0, 200, 0.08)";
+            e.currentTarget.style.borderColor = "rgba(255, 0, 200, 0.25)";
+          }}
+        >
+          🎨 Card Customization (Shop)
+        </button>
+
+        <CustomizationsModal isOpen={showCustomize} onClose={() => setShowCustomize(false)} />
       </div>
     </div>
   );
