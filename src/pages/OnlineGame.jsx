@@ -143,6 +143,41 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
   const [showChatMenu, setShowChatMenu] = useState(false);
   const reactMenuRef = useRef(null);
 
+  const isRoundOver = room?.status === "round-finished" || room?.status === "finished";
+  const roomCode = room?.roomCode;
+  const roomRef = useMemo(
+    () => (roomCode ? doc(db, "rooms", roomCode) : null),
+    [roomCode]
+  );
+  const myCards = room?.hands?.[playerName] || [];
+  const currentPlayer = room?.players?.[room?.currentPlayer];
+  const isMyTurn = playerKey(currentPlayer?.name) === playerName;
+  const isHost = playerKey(room?.host?.name) === playerName;
+  const timeLeft = Math.max(0, Math.ceil(((room?.turnDeadline || now) - now) / 1000));
+  const myCount = getHandValue(myCards, room?.jokerCard?.rank);
+  const declarationThreshold = room?.settings?.declarationThreshold !== undefined
+    ? room.settings.declarationThreshold
+    : (room?.settings?.maxScore === 100 ? 10 : 20);
+  const canDeclare = myCount <= declarationThreshold;
+
+  const discardList = useMemo(() => room?.discardPile || [], [room?.discardPile]);
+  const topDiscards = useMemo(() => discardList.slice(-3), [discardList]);
+
+  const displayTotals = useMemo(
+    () =>
+      (room?.players || []).map((player) => {
+        const key = playerKey(player.name);
+        return {
+          key,
+          name: player.name,
+          cards: room?.handCounts?.[key] ?? room?.hands?.[key]?.length ?? 0,
+          total: room?.totals?.[key] || 0,
+          eliminated: Boolean(room?.eliminated?.[key])
+        };
+      }),
+    [room]
+  );
+
   useEffect(() => {
     function handleClickOutside(event) {
       if (reactMenuRef.current && !reactMenuRef.current.contains(event.target)) {
@@ -260,8 +295,6 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
     return () => clearInterval(timer);
   }, []);
 
-  const isRoundOver = room?.status === "round-finished" || room?.status === "finished";
-
   useEffect(() => {
     if (!room?.reactions) return;
 
@@ -322,25 +355,6 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
     }
   }, [room?.roundNumber, room?.status]);
 
-  const roomCode = room?.roomCode;
-  const roomRef = useMemo(
-    () => (roomCode ? doc(db, "rooms", roomCode) : null),
-    [roomCode]
-  );
-  const myCards = room?.hands?.[playerName] || [];
-  const currentPlayer = room?.players?.[room?.currentPlayer];
-  const isMyTurn = playerKey(currentPlayer?.name) === playerName;
-  const isHost = playerKey(room?.host?.name) === playerName;
-  const timeLeft = Math.max(0, Math.ceil(((room?.turnDeadline || now) - now) / 1000));
-  const myCount = getHandValue(myCards, room?.jokerCard?.rank);
-  const declarationThreshold = room?.settings?.declarationThreshold !== undefined
-    ? room.settings.declarationThreshold
-    : (room?.settings?.maxScore === 100 ? 10 : 20);
-  const canDeclare = myCount <= declarationThreshold;
-
-  const discardList = useMemo(() => room?.discardPile || [], [room?.discardPile]);
-  const topDiscards = useMemo(() => discardList.slice(-3), [discardList]);
-
   const getSeededAngle = useCallback((card, index) => {
     if (!card) return 0;
     const code = (card.rank || "").charCodeAt(0) + (card.suit || "").charCodeAt(0) + index;
@@ -358,21 +372,6 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
     const code = (card.rank || "").charCodeAt(0) + (card.suit || "").charCodeAt(0) + index;
     return (code % 14) - 7; // -7 to 7px offset
   }, []);
-
-  const displayTotals = useMemo(
-    () =>
-      (room?.players || []).map((player) => {
-        const key = playerKey(player.name);
-        return {
-          key,
-          name: player.name,
-          cards: room?.handCounts?.[key] ?? room?.hands?.[key]?.length ?? 0,
-          total: room?.totals?.[key] || 0,
-          eliminated: Boolean(room?.eliminated?.[key])
-        };
-      }),
-    [room]
-  );
 
   const runAction = async (action, fallbackMessage) => {
     if (!roomRef || busy) return;
