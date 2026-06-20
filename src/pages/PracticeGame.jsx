@@ -103,6 +103,13 @@ export default function PracticeGame({ setScreen }) {
   });
   const [declarationThreshold, setDeclarationThreshold] = useState(20);
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 600);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 600);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   // Game flow states
   const [roundNumber, setRoundNumber] = useState(1);
   const [status, setStatus] = useState("setup"); // 'setup', 'playing', 'round-finished', 'finished'
@@ -740,7 +747,7 @@ export default function PracticeGame({ setScreen }) {
         minHeight: "100vh",
         background: "linear-gradient(180deg,#0f0f0f,#170028,#001f3f)",
         color: "white",
-        padding: 20
+        padding: isMobile ? "12px 8px" : 20
       }}
     >
       <div style={{ maxWidth: 1000, margin: "0 auto" }}>
@@ -838,7 +845,7 @@ export default function PracticeGame({ setScreen }) {
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
-              gap: 40,
+              gap: isMobile ? 12 : 40,
               flexWrap: "wrap",
               width: "100%",
               minHeight: 160
@@ -854,9 +861,10 @@ export default function PracticeGame({ setScreen }) {
                     isFaceUp={true}
                     hoverable={true}
                     style={{ boxShadow: "0 0 20px rgba(255, 176, 58, 0.4)", border: "2.5px solid #ffb03a" }}
+                    size={isMobile ? "sm" : "md"}
                   />
                 ) : (
-                  <div style={{ width: 82, height: 118, borderRadius: 12, border: "2px dashed #444", display: "flex", alignItems: "center", justifyContent: "center" }}>None</div>
+                  <div style={{ width: isMobile ? 55 : 82, height: isMobile ? 80 : 118, borderRadius: isMobile ? 8 : 12, border: "2px dashed #444", display: "flex", alignItems: "center", justifyContent: "center" }}>None</div>
                 )}
               </div>
             </div>
@@ -864,23 +872,24 @@ export default function PracticeGame({ setScreen }) {
             {/* Draw Pile (Deck) */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }} className="tutorial-draw-deck">
               <span style={{ fontSize: 12, color: "#00e5ff", fontWeight: "bold", letterSpacing: 1 }}>DRAW DECK</span>
-              <div ref={deckRef} style={{ position: "relative", width: 82, height: 118 }}>
-                <div style={{ position: "absolute", top: 4, left: 4, width: 82, height: 118, zIndex: 1 }}>
-                  <PlayingCard card={null} isFaceUp={false} hoverable={false} style={{ opacity: 0.3 }} />
+              <div ref={deckRef} style={{ position: "relative", width: isMobile ? 55 : 82, height: isMobile ? 80 : 118 }}>
+                <div style={{ position: "absolute", top: 4, left: 4, width: isMobile ? 55 : 82, height: isMobile ? 80 : 118, zIndex: 1 }}>
+                  <PlayingCard card={null} isFaceUp={false} hoverable={false} style={{ opacity: 0.3 }} size={isMobile ? "sm" : "md"} />
                 </div>
-                <div style={{ position: "absolute", top: 2, left: 2, width: 82, height: 118, zIndex: 2 }}>
-                  <PlayingCard card={null} isFaceUp={false} hoverable={false} style={{ opacity: 0.6 }} />
+                <div style={{ position: "absolute", top: 2, left: 2, width: isMobile ? 55 : 82, height: isMobile ? 80 : 118, zIndex: 2 }}>
+                  <PlayingCard card={null} isFaceUp={false} hoverable={false} style={{ opacity: 0.6 }} size={isMobile ? "sm" : "md"} />
                 </div>
-                <div style={{ position: "absolute", top: 0, left: 0, width: 82, height: 118, zIndex: 3 }}>
+                <div style={{ position: "absolute", top: 0, left: 0, width: isMobile ? 55 : 82, height: isMobile ? 80 : 118, zIndex: 3 }}>
                   <PlayingCard
-                    card={null}
-                    isFaceUp={false}
-                    hoverable={isMyTurn && pendingDraw && pendingPlayer === "player"}
-                    onClick={isMyTurn && pendingDraw && pendingPlayer === "player" ? () => drawCardLocal(false) : null}
-                    style={{
-                      border: isMyTurn && pendingDraw && pendingPlayer === "player" ? "3px solid #00e5ff" : "2px solid rgba(0, 229, 255, 0.4)",
-                      boxShadow: isMyTurn && pendingDraw && pendingPlayer === "player" ? "0 0 20px rgba(0,229,255,0.6)" : "0 4px 8px rgba(0,0,0,0.3)"
-                    }}
+                     card={null}
+                     isFaceUp={false}
+                     hoverable={isMyTurn && pendingDraw && pendingPlayer === "player"}
+                     onClick={isMyTurn && pendingDraw && pendingPlayer === "player" ? () => drawCardLocal(false) : null}
+                     style={{
+                       border: isMyTurn && pendingDraw && pendingPlayer === "player" ? "3px solid #00e5ff" : "2px solid rgba(0, 229, 255, 0.4)",
+                       boxShadow: isMyTurn && pendingDraw && pendingPlayer === "player" ? "0 0 20px rgba(0,229,255,0.6)" : "0 4px 8px rgba(0,0,0,0.3)"
+                     }}
+                     size={isMobile ? "sm" : "md"}
                   />
                 </div>
               </div>
@@ -889,7 +898,7 @@ export default function PracticeGame({ setScreen }) {
             {/* Discard Pile */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 12, color: "#ff00c8", fontWeight: "bold", letterSpacing: 1 }}>OPEN DISCARD</span>
-              <div ref={discardRef} style={{ position: "relative", width: 82, height: 118 }}>
+              <div ref={discardRef} style={{ position: "relative", width: isMobile ? 55 : 82, height: isMobile ? 80 : 118 }}>
                 {openCard ? (
                   <>
                     {topDiscards.map((card, i) => {
@@ -903,14 +912,14 @@ export default function PracticeGame({ setScreen }) {
                             position: "absolute",
                             top: y,
                             left: x,
-                            width: 82,
-                            height: 118,
+                            width: isMobile ? 55 : 82,
+                            height: isMobile ? 80 : 118,
                             transform: `rotate(${angle}deg)`,
                             zIndex: i + 1,
                             pointerEvents: "none"
                           }}
                         >
-                          <PlayingCard card={card} isFaceUp={true} hoverable={false} size="md" />
+                          <PlayingCard card={card} isFaceUp={true} hoverable={false} size={isMobile ? "sm" : "md"} />
                         </div>
                       );
                     })}
@@ -920,11 +929,12 @@ export default function PracticeGame({ setScreen }) {
                         isFaceUp={true}
                         hoverable={false}
                         style={{ border: "1px solid rgba(255, 255, 255, 0.2)", boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }}
+                        size={isMobile ? "sm" : "md"}
                       />
                     </div>
                   </>
                 ) : (
-                  <div style={{ width: 82, height: 118, borderRadius: 12, border: "2px dashed #444", display: "flex", alignItems: "center", justifyContent: "center" }}>Empty</div>
+                  <div style={{ width: isMobile ? 55 : 82, height: isMobile ? 80 : 118, borderRadius: isMobile ? 8: 12, border: "2px dashed #444", display: "flex", alignItems: "center", justifyContent: "center" }}>Empty</div>
                 )}
               </div>
             </div>
@@ -943,6 +953,7 @@ export default function PracticeGame({ setScreen }) {
                       border: isMyTurn && pendingDraw && pendingPlayer === "player" ? "3px solid #0984e3" : "1px solid rgba(255, 255, 255, 0.2)",
                       boxShadow: isMyTurn && pendingDraw && pendingPlayer === "player" ? "0 0 20px rgba(9,132,227,0.6)" : "0 4px 8px rgba(0,0,0,0.3)"
                     }}
+                    size={isMobile ? "sm" : "md"}
                   />
                 </div>
               </div>
@@ -1357,6 +1368,7 @@ export default function PracticeGame({ setScreen }) {
                           ? `translateY(-20px) rotate(0deg) translateZ(0)`
                           : `rotate(${rot}deg) translateY(${ty}px) translateX(${tx}px) translateZ(0)`
                       }}
+                      size={isMobile ? "sm" : "md"}
                     />
                   </motion.div>
                 );
@@ -1514,7 +1526,7 @@ export default function PracticeGame({ setScreen }) {
                           transition={{ duration: 0.4 }}
                           style={{ perspective: 400 }}
                         >
-                          <PlayingCard card={card} isFaceUp={revealed} hoverable={false} size="sm" />
+                          <PlayingCard card={card} isFaceUp={revealed} hoverable={false} size={isMobile ? "mini" : "sm"} />
                         </motion.div>
                       ))}
                     </div>
