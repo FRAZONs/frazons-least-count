@@ -64,17 +64,17 @@ export default function AuthPage({ onGuestMode }) {
     }
 
     if (isSignUp && !nickTrim) {
-      showError("Please select a duelist nickname");
+      showError("Please enter a Gamer ID");
       return;
     }
 
     setLoading(true);
     try {
       if (isSignUp) {
-        // 1. Verify nickname availability first
+        // 1. Verify Gamer ID availability first
         const available = await checkNicknameAvailable(db, nickTrim);
         if (!available) {
-          showError("Nickname is already taken. Try another!");
+          showError("Gamer ID is already taken. Try another!");
           setLoading(false);
           return;
         }
@@ -182,7 +182,7 @@ export default function AuthPage({ onGuestMode }) {
         <form onSubmit={handleEmailAuth} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {isSignUp && (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 12, fontWeight: "bold", color: "#aaa" }}>DUELIST NICKNAME</label>
+              <label style={{ fontSize: 12, fontWeight: "bold", color: "#aaa" }}>GAMER ID</label>
               <input
                 type="text"
                 placeholder="e.g. CyberNinja"

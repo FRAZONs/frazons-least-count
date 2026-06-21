@@ -46,7 +46,7 @@ export default function NicknameSelection({ uid, onComplete }) {
 
     const nickTrim = nickname.trim();
     if (!nickTrim) {
-      showError("Please enter a nickname");
+      showError("Please enter a Gamer ID");
       return;
     }
 
@@ -55,7 +55,7 @@ export default function NicknameSelection({ uid, onComplete }) {
       // 1. Verify availability
       const available = await checkNicknameAvailable(db, nickTrim);
       if (!available) {
-        showError("Nickname is already taken. Try another!");
+        showError("Gamer ID is already taken. Try another!");
         setLoading(false);
         return;
       }
@@ -82,10 +82,10 @@ export default function NicknameSelection({ uid, onComplete }) {
 
       // 3. Create player profile document
       const profile = await createPlayerProfile(db, uid, nickTrim, initialStats);
-      success("Profile created successfully!");
+      success("Gamer ID created successfully!");
       onComplete(profile);
     } catch (err) {
-      showError("Failed to set nickname. Try again.");
+      showError("Failed to set Gamer ID. Try again.");
       console.error(err);
     } finally {
       setLoading(false);
@@ -127,16 +127,16 @@ export default function NicknameSelection({ uid, onComplete }) {
         <div style={{ textAlign: "center", marginBottom: 10 }}>
           <span style={{ fontSize: 48, filter: "drop-shadow(0 0 10px rgba(0, 229, 255, 0.4))" }}>🃏</span>
           <h2 style={{ margin: "12px 0 2px 0", fontSize: 24, fontWeight: "black", letterSpacing: 1, color: "white", textShadow: "0 0 15px rgba(0,229,255,0.3)" }}>
-            SELECT NICKNAME
+            CREATE GAMER ID
           </h2>
           <p style={{ fontSize: 13, color: "#aaa", marginTop: 4 }}>
-            Choose a unique nickname to represent you on the leaderboard and in duels!
+            Choose a unique Gamer ID to represent you on the leaderboard and in duels!
           </p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={{ fontSize: 12, fontWeight: "bold", color: "#aaa" }}>CHOOSE NICKNAME</label>
+            <label style={{ fontSize: 12, fontWeight: "bold", color: "#aaa" }}>CHOOSE GAMER ID</label>
             <input
               type="text"
               placeholder="e.g. CyberNinja"
@@ -155,7 +155,7 @@ export default function NicknameSelection({ uid, onComplete }) {
             onMouseEnter={(e) => e.currentTarget.style.filter = "brightness(1.15)"}
             onMouseLeave={(e) => e.currentTarget.style.filter = "none"}
           >
-            {loading ? "SAVING NICKNAME..." : "CLAIM NICKNAME & ENTER"}
+            {loading ? "SAVING GAMER ID..." : "CREATE GAMER ID & ENTER"}
           </button>
         </form>
       </motion.div>

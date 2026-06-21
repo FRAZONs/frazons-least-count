@@ -306,11 +306,11 @@ export default function Multiplayer({ setScreen, setRoom, isGuest, onExitGuestMo
 
         {/* Shared Username Input */}
         <div style={{ textAlign: "left", marginBottom: 20 }}>
-          <label style={{ fontSize: 12, color: "#aaa", fontWeight: "bold", display: "block", marginBottom: 6 }}>ENTER YOUR DUELIST NAME</label>
+          <label style={{ fontSize: 12, color: "#aaa", fontWeight: "bold", display: "block", marginBottom: 6 }}>ENTER YOUR GAMER ID</label>
           <input
             value={playerName}
             onChange={(event) => setPlayerName(event.target.value)}
-            placeholder="Duelist Name"
+            placeholder="Gamer ID"
             maxLength={20}
             style={inputStyle}
           />
