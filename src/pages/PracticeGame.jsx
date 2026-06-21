@@ -15,7 +15,7 @@ import {
   playQuickChatSound
 } from "../utils/audio";
 import { getHandValue, getCardValue, refillDrawPile } from "../utils/onlineGame";
-import { updateLocalStats, saveMatchToDatabase, getCareerPoints } from "../utils/playerStats";
+import { updateLocalStats, saveMatchToDatabase, getCareerPoints, updateQuestProgress } from "../utils/playerStats";
 import { db } from "../firebase";
 
 const panelStyle = {
@@ -109,6 +109,8 @@ export default function PracticeGame({ setScreen }) {
 
   const xp = getCareerPoints();
   const [declarationThreshold, setDeclarationThreshold] = useState(20);
+  const [botDifficulty, setBotDifficulty] = useState("medium");
+  const [roundHistory, setRoundHistory] = useState([]);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 600);
   useEffect(() => {
@@ -189,9 +191,9 @@ export default function PracticeGame({ setScreen }) {
   // Bot list configuration
   const bots = useMemo(() => [
     { name: playerName, key: "player", avatar: "👤", color: "#ff00c8" },
-    { name: "Safe Bot 🤖", key: "bot1", avatar: "🛡️", color: "#00ff88", personality: "safe" },
-    { name: "Agg Bot 🤖", key: "bot2", avatar: "⚔️", color: "#ff9f43", personality: "aggressive" }
-  ], [playerName]);
+    { name: `Safe Bot (${botDifficulty}) 🤖`, key: "bot1", avatar: "🛡️", color: "#00ff88", personality: "safe" },
+    { name: `Agg Bot (${botDifficulty}) 🤖`, key: "bot2", avatar: "⚔️", color: "#ff9f43", personality: "aggressive" }
+  ], [playerName, botDifficulty]);
 
   const topDiscards = useMemo(() => discardPile.slice(-3), [discardPile]);
 
@@ -343,6 +345,7 @@ export default function PracticeGame({ setScreen }) {
   // Initialize practice game
   const initPracticeGame = () => {
     setTotals({ player: 0, bot1: 0, bot2: 0 });
+    setRoundHistory([]);
     setWinner(null);
     updateLocalStats({ offlineMatchesPlayed: 1 });
     startRound(1);
@@ -397,6 +400,13 @@ export default function PracticeGame({ setScreen }) {
 
     setTotals(nextTotals);
 
+    const newRoundLog = {
+      roundNumber: roundNumber,
+      scores: { ...roundScores },
+      totals: { ...nextTotals }
+    };
+    setRoundHistory((prev) => [...prev, newRoundLog]);
+
     // Check if match winner is determined
     const scoreLimit = 200;
     const checkElimination = {
@@ -425,6 +435,10 @@ export default function PracticeGame({ setScreen }) {
       // Career Stats updates
       if (winnerBot.key === "player") {
         updateLocalStats({ offlineMatchesWon: 1 });
+        updateQuestProgress("daily_win_bot", 1);
+        if (nextTotals.player < 20) {
+          updateQuestProgress("weekly_low_win", 1);
+        }
       }
 
       // Log match summary to Firestore matches database collection
@@ -441,7 +455,8 @@ export default function PracticeGame({ setScreen }) {
         })),
         playersKeys: [pKey, "bot1", "bot2"],
         totals: nextTotals,
-        roundCount: roundNumber
+        roundCount: roundNumber,
+        history: [...roundHistory, newRoundLog]
       };
       saveMatchToDatabase(db, matchData);
     } else {
@@ -500,6 +515,7 @@ export default function PracticeGame({ setScreen }) {
 
     if (isSlash) {
       // Slashes skip draw entirely
+      updateQuestProgress("daily_slash", 1);
       setHands((prev) => ({ ...prev, player: newHand }));
       setSelectedCards([]);
       // Advance turn
@@ -566,6 +582,9 @@ export default function PracticeGame({ setScreen }) {
       updateLocalStats({ declarationsMade: 1, declarationsLost: 1 });
     } else {
       updateLocalStats({ declarationsMade: 1, declarationsWon: 1 });
+      if (myScore < 10) {
+        updateQuestProgress("daily_declare_low", 1);
+      }
     }
 
     const lowest = Math.min(...Object.values(roundScores));
@@ -606,10 +625,27 @@ export default function PracticeGame({ setScreen }) {
       const minOpponentCards = Math.min(...otherPlayersCounts);
 
       let threshold = Math.min(bot.personality === "safe" ? 5 : 2, declarationThreshold);
-      if (minOpponentCards === 1) {
-        threshold = Math.min(bot.personality === "safe" ? 14 : 10, declarationThreshold);
-      } else if (minOpponentCards === 2) {
-        threshold = Math.min(bot.personality === "safe" ? 8 : 5, declarationThreshold);
+      if (botDifficulty === "easy") {
+        // Easy declares aggressively
+        threshold = 12;
+      } else if (botDifficulty === "medium") {
+        if (minOpponentCards === 1) {
+          threshold = Math.min(bot.personality === "safe" ? 12 : 9, declarationThreshold);
+        } else if (minOpponentCards === 2) {
+          threshold = Math.min(bot.personality === "safe" ? 7 : 4, declarationThreshold);
+        }
+      } else {
+        // Expert declares defensively and intelligently
+        if (minOpponentCards === 1) {
+          threshold = Math.min(5, declarationThreshold);
+        } else if (minOpponentCards === 2) {
+          threshold = Math.min(8, declarationThreshold);
+        } else {
+          threshold = Math.min(10, declarationThreshold);
+        }
+        if (minOpponentCards > 1 && botScore > 8) {
+          threshold = 0; // Don't declare
+        }
       }
 
       if (botScore <= threshold && !pendingDraw) {
@@ -630,7 +666,7 @@ export default function PracticeGame({ setScreen }) {
         const lowest = Math.min(...Object.values(roundScores));
         const winners = Object.entries(roundScores)
           .filter(([, s]) => s === lowest)
-          .map(([k]) => k === "player" ? playerName : k === "bot1" ? "Safe Bot 🤖" : "Agg Bot 🤖");
+          .map(([k]) => k === "player" ? playerName : k === "bot1" ? `Safe Bot (${botDifficulty}) 🤖` : `Agg Bot (${botDifficulty}) 🤖`);
 
         finishLocalRound(roundScores, {
           type: "declaration",
@@ -650,8 +686,13 @@ export default function PracticeGame({ setScreen }) {
           const val = getCardValue(previousOpenCard, jokerCard?.rank);
           const hasMatchingRank = hand.some((c) => c.rank === previousOpenCard.rank);
           
-          if (val <= (bot.personality === "safe" ? 4 : 3) || hasMatchingRank) {
-            drawOpen = true;
+          if (botDifficulty === "easy") {
+            drawOpen = val <= 8 && Math.random() < 0.4;
+          } else if (botDifficulty === "medium") {
+            drawOpen = val <= 4 || hasMatchingRank;
+          } else {
+            const isWildJoker = previousOpenCard.rank === "JOKER" || previousOpenCard.rank === jokerCard?.rank;
+            drawOpen = val <= 5 || hasMatchingRank || isWildJoker;
           }
         }
 
@@ -688,7 +729,6 @@ export default function PracticeGame({ setScreen }) {
       }
 
       // 3. Play Cards actions
-      // Find highest value cards of same rank to dump points
       const cardValues = hand.map((card, idx) => ({
         card,
         idx,
@@ -702,21 +742,42 @@ export default function PracticeGame({ setScreen }) {
         groups[item.card.rank].push(item);
       });
 
-      // Find group with highest total value
-      let bestGroup = null;
-      let highestVal = -1;
+      let groupToPlay = null;
 
-      Object.values(groups).forEach((grp) => {
-        const totalGrpVal = grp.reduce((acc, item) => acc + item.val, 0);
-        if (totalGrpVal > highestVal) {
-          highestVal = totalGrpVal;
-          bestGroup = grp;
+      if (botDifficulty === "easy") {
+        const groupKeys = Object.keys(groups);
+        const randomRank = groupKeys[Math.floor(Math.random() * groupKeys.length)];
+        groupToPlay = groups[randomRank];
+        
+        const slashingGroup = openCard ? groups[openCard.rank] : null;
+        if (slashingGroup && slashingGroup.length > 0 && Math.random() < 0.2) {
+          groupToPlay = slashingGroup;
         }
-      });
-
-      // Prioritize slashing (matching open discard rank) to skip draw
-      const slashingGroup = openCard ? groups[openCard.rank] : null;
-      const groupToPlay = (slashingGroup && slashingGroup.length > 0) ? slashingGroup : bestGroup;
+      } else if (botDifficulty === "medium") {
+        let bestGroup = null;
+        let highestVal = -1;
+        Object.values(groups).forEach((grp) => {
+          const totalGrpVal = grp.reduce((acc, item) => acc + item.val, 0);
+          if (totalGrpVal > highestVal) {
+            highestVal = totalGrpVal;
+            bestGroup = grp;
+          }
+        });
+        const slashingGroup = openCard ? groups[openCard.rank] : null;
+        groupToPlay = (slashingGroup && slashingGroup.length > 0) ? slashingGroup : bestGroup;
+      } else {
+        let bestGroup = null;
+        let highestWeight = -1;
+        Object.values(groups).forEach((grp) => {
+          const weight = grp.reduce((acc, item) => acc + item.val, 0) + (grp.length * 15);
+          if (weight > highestWeight) {
+            highestWeight = weight;
+            bestGroup = grp;
+          }
+        });
+        const slashingGroup = openCard ? groups[openCard.rank] : null;
+        groupToPlay = (slashingGroup && slashingGroup.length > 0) ? slashingGroup : bestGroup;
+      }
 
       if (!groupToPlay || groupToPlay.length === 0) return;
 
@@ -778,7 +839,9 @@ export default function PracticeGame({ setScreen }) {
     discardPile,
     bots,
     triggerBotReaction,
-    playerName
+    playerName,
+    botDifficulty,
+    declarationThreshold
   ]);
 
   const handleNextRound = () => {
@@ -883,6 +946,25 @@ export default function PracticeGame({ setScreen }) {
                 <option value={20} style={{ background: "#1a1330", color: "white" }}>Decl. Limit: 20 pts</option>
                 <option value={30} style={{ background: "#1a1330", color: "white" }}>Decl. Limit: 30 pts</option>
                 <option value={999} style={{ background: "#1a1330", color: "white" }}>Decl. Limit: No limit</option>
+              </select>
+              <select
+                value={botDifficulty}
+                onChange={(e) => setBotDifficulty(e.target.value)}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  color: "white",
+                  padding: "4px 10px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  outline: "none"
+                }}
+              >
+                <option value="easy" style={{ background: "#1a1330", color: "white" }}>🤖 Easy Bots</option>
+                <option value="medium" style={{ background: "#1a1330", color: "white" }}>🤖 Medium Bots</option>
+                <option value="expert" style={{ background: "#1a1330", color: "white" }}>⚡ Expert Bots</option>
               </select>
             </div>
             

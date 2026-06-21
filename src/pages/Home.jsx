@@ -1,11 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { STORAGE_KEYS, BUTTON_STYLES, HOME_PAGE_STYLE } from "../constants";
 import CustomizationsModal from "../components/CustomizationsModal";
-import { getCareerPoints, getRankTier } from "../utils/playerStats";
+import { getCareerPoints, getRankTier, initializeQuests, claimQuestReward } from "../utils/playerStats";
+import { db } from "../firebase";
 
 export default function Home({ setScreen }) {
   const [showCustomize, setShowCustomize] = useState(false);
   const hasSave = localStorage.getItem(STORAGE_KEYS.players);
+
+  const [questProgress, setQuestProgress] = useState(null);
+  const [questsExpanded, setQuestsExpanded] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    const progress = initializeQuests();
+    setQuestProgress(progress);
+  }, []);
 
   const xp = getCareerPoints();
   const level = Math.floor(Math.sqrt(xp / 100)) + 1;
@@ -128,6 +138,155 @@ export default function Home({ setScreen }) {
             </div>
           </div>
         </div>
+
+        {/* handleClaimReward and renderQuestItem helper functions */}
+        {(() => {
+          const handleClaimReward = async (questId) => {
+            try {
+              const claimedXP = await claimQuestReward(db, questId);
+              if (claimedXP > 0) {
+                const updatedProgress = initializeQuests();
+                setQuestProgress(updatedProgress);
+                setRefreshTrigger(prev => prev + 1);
+              }
+            } catch (e) {
+              console.error("Failed to claim reward:", e);
+            }
+          };
+
+          const renderQuestItem = (q) => {
+            const isCompleted = q.current >= q.target;
+            const isClaimed = q.claimed;
+            const progressPercent = Math.min(100, (q.current / q.target) * 100);
+
+            return (
+              <div key={q.id} style={{ display: "flex", flexDirection: "column", gap: 6, background: "rgba(255,255,255,0.02)", padding: 12, borderRadius: 12, border: "1px solid rgba(255,255,255,0.04)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: "bold", color: isCompleted ? "#00ff88" : "white" }}>
+                      {q.title}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
+                      Reward: <strong style={{ color: "#00e5ff" }}>+{q.xpReward} XP</strong>
+                    </div>
+                  </div>
+
+                  {/* Claim or Status button */}
+                  {isClaimed ? (
+                    <span style={{ fontSize: 11, color: "#555", fontWeight: "bold", padding: "4px 8px" }}>CLAIMED</span>
+                  ) : isCompleted ? (
+                    <button
+                      onClick={() => handleClaimReward(q.id)}
+                      style={{
+                        background: "linear-gradient(90deg, #00ff88, #00e5ff)",
+                        color: "black",
+                        border: "none",
+                        padding: "6px 12px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: "bold",
+                        cursor: "pointer",
+                        boxShadow: "0 0 10px rgba(0,255,136,0.3)",
+                        transition: "transform 0.1s"
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.05)"}
+                      onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+                    >
+                      Claim XP
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: 12, color: "#aaa", fontFamily: "monospace" }}>{q.current}/{q.target}</span>
+                  )}
+                </div>
+
+                {/* Progress Bar */}
+                {!isClaimed && (
+                  <div style={{ width: "100%", height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden", marginTop: 4 }}>
+                    <div
+                      style={{
+                        width: `${progressPercent}%`,
+                        height: "100%",
+                        background: isCompleted ? "#00ff88" : "linear-gradient(90deg, #c084fc, #00e5ff)",
+                        borderRadius: 3
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          };
+
+          const dailyQuests = questProgress?.dailyQuests || [];
+          const weeklyQuests = questProgress?.weeklyQuests || [];
+          const pendingClaimsCount = [...dailyQuests, ...weeklyQuests].filter(q => q.current >= q.target && !q.claimed).length;
+
+          return (
+            <div
+              style={{
+                width: "100%",
+                background: "rgba(255, 255, 255, 0.04)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+                borderRadius: 20,
+                padding: 16,
+                marginBottom: 20,
+                textAlign: "left",
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+                boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
+                boxSizing: "border-box"
+              }}
+            >
+              {/* Header */}
+              <div
+                onClick={() => setQuestsExpanded(!questsExpanded)}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  cursor: "pointer"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>🎯</span>
+                  <div>
+                    <div style={{ fontWeight: "bold", fontSize: 15, color: "#00ff88" }}>Arena Quests</div>
+                    <div style={{ fontSize: 11, color: "#aaa" }}>Daily & Weekly XP missions</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {pendingClaimsCount > 0 && (
+                    <span style={{
+                      background: "#00ff88",
+                      color: "black",
+                      fontSize: 10,
+                      fontWeight: "bold",
+                      padding: "2px 6px",
+                      borderRadius: 8,
+                      boxShadow: "0 0 10px rgba(0,255,136,0.4)"
+                    }}>
+                      {pendingClaimsCount} READY
+                    </span>
+                  )}
+                  <span style={{ fontSize: 12, color: "#aaa" }}>{questsExpanded ? "▲" : "▼"}</span>
+                </div>
+              </div>
+
+              {/* Quests List */}
+              {questsExpanded && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 4, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 12 }}>
+                  {/* Daily Quests */}
+                  <div style={{ fontSize: 12, fontWeight: "bold", color: "#00e5ff", letterSpacing: 0.5 }}>DAILY QUESTS</div>
+                  {dailyQuests.map((q) => renderQuestItem(q))}
+
+                  {/* Weekly Quests */}
+                  <div style={{ fontSize: 12, fontWeight: "bold", color: "#c084fc", letterSpacing: 0.5, marginTop: 6 }}>WEEKLY QUESTS</div>
+                  {weeklyQuests.map((q) => renderQuestItem(q))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Game Modes Section */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>

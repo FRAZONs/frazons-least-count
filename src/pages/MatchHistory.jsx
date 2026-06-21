@@ -25,6 +25,7 @@ const backButtonStyle = {
 export default function MatchHistory({ setScreen }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState(null);
   
   const playerName = localStorage.getItem("playerName") || "player";
   const pKey = playerName.toLowerCase().replace(/\s+/g, "_");
@@ -60,7 +61,7 @@ export default function MatchHistory({ setScreen }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 32, textShadow: "0 0 15px rgba(0,229,255,0.4)" }}>📜 Duel Logs</h1>
-            <div style={{ color: "#00e5ff", fontSize: 13, marginTop: 4 }}>Completed Game Records</div>
+            <div style={{ color: "#00e5ff", fontSize: 13, marginTop: 4 }}>Completed Game Records (Click to expand round logs)</div>
           </div>
           <button
             onClick={() => setScreen("home")}
@@ -104,16 +105,13 @@ export default function MatchHistory({ setScreen }) {
                   })
                 : "Unknown Date";
 
-              // Check if user is winner
               const isWinner = match.winnerKey === pKey;
-
-              // Find user's score
-              const myParticipant = match.players?.find(p => p.key === pKey);
-              const myScore = myParticipant ? `${myParticipant.totalScore} pts` : "-";
+              const isExpanded = expandedId === match.id;
 
               return (
                 <div
                   key={match.id}
+                  onClick={() => setExpandedId(isExpanded ? null : match.id)}
                   style={{
                     ...panelStyle,
                     background: isWinner ? "rgba(0, 255, 136, 0.04)" : "rgba(255, 255, 255, 0.03)",
@@ -121,11 +119,17 @@ export default function MatchHistory({ setScreen }) {
                     display: "flex",
                     flexDirection: "column",
                     gap: 14,
-                    transition: "transform 0.2s",
-                    cursor: "default"
+                    transition: "all 0.2s ease",
+                    cursor: "pointer"
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.01)"}
-                  onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 24px rgba(0,0,0,0.4)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "none";
+                    e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)";
+                  }}
                 >
                   {/* Top line summary */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -136,11 +140,11 @@ export default function MatchHistory({ setScreen }) {
                         textTransform: "uppercase",
                         padding: "2px 8px",
                         borderRadius: 6,
-                        background: match.type === "online" ? "rgba(192, 132, 252, 0.2)" : "rgba(0, 229, 255, 0.15)",
-                        color: match.type === "online" ? "#c084fc" : "#00e5ff",
-                        border: match.type === "online" ? "1px solid rgba(192, 132, 252, 0.4)" : "1px solid rgba(0, 229, 255, 0.3)"
+                        background: match.isRanked ? "rgba(255, 0, 127, 0.15)" : match.type === "online" ? "rgba(192, 132, 252, 0.2)" : "rgba(0, 229, 255, 0.15)",
+                        color: match.isRanked ? "#ff007f" : match.type === "online" ? "#c084fc" : "#00e5ff",
+                        border: match.isRanked ? "1px solid rgba(255, 0, 127, 0.3)" : match.type === "online" ? "1px solid rgba(192, 132, 252, 0.4)" : "1px solid rgba(0, 229, 255, 0.3)"
                       }}>
-                        {match.type === "online" ? "☁️ Online" : "🤖 Offline"}
+                        {match.isRanked ? "⚔️ Ranked" : match.type === "online" ? "☁️ Casual" : "🤖 Offline"}
                       </span>
                       <span style={{ fontSize: 12, color: "#888" }}>{formattedDate}</span>
                     </div>
@@ -156,6 +160,9 @@ export default function MatchHistory({ setScreen }) {
                           DEFEAT
                         </span>
                       )}
+                      <span style={{ fontSize: 12, color: "#888", marginLeft: 4 }}>
+                        {isExpanded ? "▲" : "▼"}
+                      </span>
                     </div>
                   </div>
 
@@ -164,7 +171,7 @@ export default function MatchHistory({ setScreen }) {
                     {(match.players || [])
                       .sort((a, b) => a.totalScore - b.totalScore)
                       .map((p, rankIdx) => {
-                        const isMe = p.key === pKey;
+                        const isMe = p.key === pKey || (p.key === "player" && pKey === "player");
                         const medal = rankIdx === 0 ? "🥇" : rankIdx === 1 ? "🥈" : rankIdx === 2 ? "🥉" : "👤";
                         
                         return (
@@ -190,6 +197,60 @@ export default function MatchHistory({ setScreen }) {
                         );
                       })}
                   </div>
+
+                  {/* Round Recap Table (Expanded) */}
+                  {isExpanded && (
+                    <div
+                      onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside details
+                      style={{
+                        marginTop: 12,
+                        borderTop: "1px solid rgba(255,255,255,0.08)",
+                        paddingTop: 12,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 12,
+                        cursor: "default"
+                      }}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: "bold", color: "#c4b5fd", letterSpacing: 0.5 }}>📊 ROUND-BY-ROUND RECAP</div>
+                      
+                      {match.history && match.history.length > 0 ? (
+                        <div style={{ overflowX: "auto" }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "center" }}>
+                            <thead>
+                              <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.15)", color: "#aaa" }}>
+                                <th style={{ padding: "6px 4px", textAlign: "left" }}>Round</th>
+                                {match.players.map(p => (
+                                  <th key={p.key} style={{ padding: "6px 4px" }}>{p.name}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {match.history.map((roundLog, rIdx) => (
+                                <tr key={rIdx} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                                  <td style={{ padding: "8px 4px", textAlign: "left", color: "#888" }}>R{roundLog.roundNumber}</td>
+                                  {match.players.map(p => {
+                                    const roundScore = roundLog.scores?.[p.key] !== undefined ? roundLog.scores[p.key] : "-";
+                                    const runningTotal = roundLog.totals?.[p.key] !== undefined ? roundLog.totals[p.key] : "-";
+                                    return (
+                                      <td key={p.key} style={{ padding: "8px 4px" }}>
+                                        <span style={{ color: "#00ff88" }}>+{roundScore}</span>{" "}
+                                        <span style={{ color: "#777", fontSize: 10 }}>({runningTotal})</span>
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div style={{ color: "#666", fontSize: 12, fontStyle: "italic", textAlign: "center", padding: "10px 0" }}>
+                          No round-by-round logs recorded for this older duel.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

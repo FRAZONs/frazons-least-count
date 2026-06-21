@@ -13,7 +13,7 @@ import {
   playHeartbeatSound,
   playQuickChatSound
 } from "../utils/audio";
-import { updateLocalStats, saveMatchToDatabase, getCareerPoints } from "../utils/playerStats";
+import { updateLocalStats, saveMatchToDatabase, getCareerPoints, getRankTier, savePlayerRankedStats, updateQuestProgress } from "../utils/playerStats";
 import TutorialOverlay from "../components/TutorialOverlay";
 import {
   createRoundState,
@@ -103,6 +103,7 @@ const actionButton = (background, disabled = false) => ({
 export default function OnlineGame({ room, setRoom, setScreen }) {
   const [selectedCards, setSelectedCards] = useState([]);
   const [rankedUpdate, setRankedUpdate] = useState(null);
+  const [showPromotionOverlay, setShowPromotionOverlay] = useState(false);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const playerName = localStorage.getItem("playerName") || "";
@@ -306,6 +307,20 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
         const myParticipant = room?.players?.find(p => playerKey(p.name) === playerName);
         const myDisplayName = myParticipant ? myParticipant.name : playerName;
         savePlayerRankedStats(db, myDisplayName, rpChange);
+
+        // Update Quests for Ranked Duels
+        updateQuestProgress("weekly_ranked_plays", 1);
+        if (placement === 1) {
+          updateQuestProgress("weekly_ranked_wins", 1);
+          if ((room.totals?.[playerName] || 0) < 20) {
+            updateQuestProgress("weekly_low_win", 1);
+          }
+        }
+
+        // Trigger promotion overlay if player tier ranked up!
+        if (newRank.name !== oldRank.name && newRP > oldRP) {
+          setShowPromotionOverlay(true);
+        }
       }
 
       // Only the host logs the finished match to the database to prevent duplicate writes!
@@ -327,7 +342,8 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
           playersKeys: playersList.map(p => playerKey(p.name)),
           totals: room.totals || {},
           roundCount: room.roundNumber || 1,
-          isRanked: Boolean(room.isRanked)
+          isRanked: Boolean(room.isRanked),
+          history: room.history || []
         };
         saveMatchToDatabase(db, matchData);
       }
@@ -2066,6 +2082,171 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
           }}
         />
       )}
+
+      {/* Rank Promotion Screen Overlay */}
+      <AnimatePresence>
+        {showPromotionOverlay && rankedUpdate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(8, 4, 18, 0.98)",
+              backdropFilter: "blur(25px)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 999999,
+              padding: 24,
+              color: "white"
+            }}
+          >
+            {/* Animated background glowing particles */}
+            <div style={{ position: "absolute", width: "100%", height: "100%", overflow: "hidden", pointerEvents: "none" }}>
+              {[...Array(20)].map((_, i) => (
+                <motion.div
+                  key={`particle-${i}`}
+                  initial={{
+                    x: Math.random() * window.innerWidth,
+                    y: window.innerHeight + 10,
+                    scale: Math.random() * 0.6 + 0.4,
+                    opacity: Math.random() * 0.5 + 0.3
+                  }}
+                  animate={{
+                    y: -100,
+                    x: `calc(10px * ${Math.sin(i)})`,
+                    rotate: 360
+                  }}
+                  transition={{
+                    duration: Math.random() * 5 + 5,
+                    repeat: Infinity,
+                    ease: "linear"
+                  }}
+                  style={{
+                    position: "absolute",
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: rankedUpdate.newColor || "#ff007f",
+                    boxShadow: `0 0 15px ${rankedUpdate.newColor || "#ff007f"}`
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Glowing container */}
+            <motion.div
+              initial={{ scale: 0.8, y: 50, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 120, damping: 14 }}
+              style={{
+                background: "rgba(255, 255, 255, 0.03)",
+                border: `2px solid ${rankedUpdate.newColor || "#ff007f"}`,
+                boxShadow: `0 0 50px rgba(0,0,0,0.8), 0 0 30px ${rankedUpdate.newColor || "#ff007f"}80`,
+                borderRadius: 36,
+                padding: "48px 32px",
+                maxWidth: 480,
+                width: "100%",
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 24,
+                position: "relative"
+              }}
+            >
+              {/* Fanfare badge */}
+              <div style={{
+                background: rankedUpdate.newColor || "#ff007f",
+                color: "black",
+                fontSize: 11,
+                fontWeight: "black",
+                letterSpacing: 2,
+                padding: "6px 16px",
+                borderRadius: 20,
+                textTransform: "uppercase",
+                boxShadow: `0 0 15px ${rankedUpdate.newColor || "#ff007f"}`
+              }}>
+                TIER PROMOTED
+              </div>
+
+              {/* Title */}
+              <h1 style={{
+                margin: 0,
+                fontSize: 36,
+                fontWeight: "black",
+                letterSpacing: 1,
+                textShadow: `0 0 20px ${rankedUpdate.newColor || "#ff007f"}80`,
+                color: "white"
+              }}>
+                RANK UP!
+              </h1>
+
+              {/* Rank visual progress */}
+              <div style={{ display: "flex", alignItems: "center", gap: 20, margin: "16px 0" }}>
+                <div style={{ opacity: 0.6, textAlign: "center" }}>
+                  <div style={{ fontSize: 40 }}>{rankedUpdate.oldRankName.split(" ").slice(-1)[0]}</div>
+                  <div style={{ fontSize: 13, color: rankedUpdate.oldColor, fontWeight: "bold", marginTop: 4 }}>{rankedUpdate.oldRankName}</div>
+                </div>
+
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                  style={{ fontSize: 28, color: "#00e5ff" }}
+                >
+                  ⚡
+                </motion.div>
+
+                <div style={{ textAlign: "center" }}>
+                  <motion.div
+                    animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                    style={{ fontSize: 64, filter: `drop-shadow(0 0 15px ${rankedUpdate.newColor || "#ff007f"})` }}
+                  >
+                    {rankedUpdate.newRankName.split(" ").slice(-1)[0]}
+                  </motion.div>
+                  <div style={{ fontSize: 18, color: rankedUpdate.newColor, fontWeight: "black", marginTop: 4, textShadow: `0 0 10px ${rankedUpdate.newColor}80` }}>
+                    {rankedUpdate.newRankName}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ fontSize: 14, color: "#aaa" }}>
+                You have advanced to a new Ranked Tier! Keep fighting to claim the Joker spot.
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", background: "rgba(0,0,0,0.2)", padding: 16, borderRadius: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span style={{ color: "#888" }}>Rating:</span>
+                  <span style={{ fontWeight: "bold", color: "#00ff88" }}>{rankedUpdate.newRP} RP</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span style={{ color: "#888" }}>Rating Change:</span>
+                  <span style={{ fontWeight: "bold", color: "#00ff88" }}>+{rankedUpdate.rpChange} RP</span>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <button
+                onClick={() => setShowPromotionOverlay(false)}
+                style={{
+                  ...actionButton(rankedUpdate.newColor || "#ff007f"),
+                  width: "100%",
+                  marginTop: 8,
+                  fontSize: 16,
+                  color: "black",
+                  boxShadow: `0 0 15px ${rankedUpdate.newColor || "#ff007f"}50`
+                }}
+              >
+                CLAIM GLORY
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

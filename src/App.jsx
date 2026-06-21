@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
 import { loadSlim } from "@tsparticles/slim";
 import Home from "./pages/Home";
@@ -8,6 +9,9 @@ import Game from "./pages/Game";
 import Lobby from "./pages/Lobby";
 import Multiplayer from "./pages/Multiplayer";
 import OnlineGame from "./pages/OnlineGame";
+import AuthPage from "./pages/AuthPage";
+import NicknameSelection from "./pages/NicknameSelection";
+import { getPlayerProfileByUid } from "./utils/playerStats";
 import ambientMusic from "./audio/ambient.mp3";
 import { STORAGE_KEYS } from "./constants";
 import ConnectionStatus from "./components/ConnectionStatus";
@@ -31,6 +35,41 @@ const safeGetJSON = (key, defaultValue) => {
 
 export default function App() {
   const [particlesReady, setParticlesReady] = useState(false);
+  const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+      if (firebaseUser) {
+        try {
+          const profile = await getPlayerProfileByUid(db, firebaseUser.uid);
+          if (profile) {
+            setUserProfile(profile);
+            const pKey = profile.name.toLowerCase().trim().replace(/\s+/g, "_");
+            localStorage.setItem("playerName", pKey);
+            localStorage.setItem("frazons-ranked-points", (profile.rankedPoints || 0).toString());
+            
+            localStorage.setItem("frazons-career-stats", JSON.stringify({
+              onlineMatchesPlayed: Number(profile.gamesPlayed) || 0,
+              onlineMatchesWon: Number(profile.wins) || 0,
+              bonusXP: Math.max(0, Number(profile.totalScore) - (Number(profile.wins) * 150))
+            }));
+          } else {
+            setUserProfile(null);
+          }
+        } catch (e) {
+          console.error("Failed to load user profile from Firestore:", e);
+          setUserProfile(null);
+        }
+      } else {
+        setUserProfile(null);
+      }
+      setAuthLoading(false);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     initParticlesEngine(async (engine) => {
@@ -272,6 +311,41 @@ export default function App() {
               />
             </div>
 
+            {user && (
+              <button
+                onClick={async () => {
+                  try {
+                    await signOut(auth);
+                    localStorage.removeItem("playerName");
+                    localStorage.removeItem("frazons-ranked-points");
+                    localStorage.removeItem("frazons-career-stats");
+                    localStorage.removeItem("frazons-quest-progress");
+                    setScreen("home");
+                    setShowSettings(false);
+                  } catch (e) {
+                    console.error("Sign out failed:", e);
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  border: "none",
+                  background: "rgba(239, 68, 68, 0.15)",
+                  color: "#ef4444",
+                  fontWeight: "bold",
+                  fontSize: 14,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  marginTop: 15
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.25)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.15)"}
+              >
+                🚪 Sign Out
+              </button>
+            )}
+
             <div style={{ marginTop: "auto", fontSize: 12, color: "#888", textAlign: "center", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: 16 }}>
               Least Count v1.3.0
             </div>
@@ -334,44 +408,74 @@ export default function App() {
 
       <div style={{ position: "relative", zIndex: 1, width: "100%" }}>
         <ErrorBoundary>
-          {screen === "home" && <Home setScreen={setScreen} />}
-          {screen === "stats" && <StatsDashboard setScreen={setScreen} />}
-          {screen === "history" && <MatchHistory setScreen={setScreen} />}
-          {screen === "practice" && <PracticeGame setScreen={setScreen} />}
-          {screen === "leaderboard" && (
-            <Suspense
-              fallback={
-                <div
-                  style={{
-                    minHeight: "100vh",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "white",
-                    fontSize: 18
-                  }}
-                >
-                  Loading leaderboard...
-                </div>
-              }
+          {authLoading ? (
+            <div
+              style={{
+                minHeight: "100vh",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "white",
+                fontFamily: "system-ui, -apple-system, sans-serif",
+                gap: 16
+              }}
             >
-              <Leaderboard setScreen={setScreen} />
-            </Suspense>
+              <div style={{ border: "4px solid rgba(255,255,255,0.1)", borderTop: "4px solid #00e5ff", borderRadius: "50%", width: 36, height: 36, margin: "0 auto", animation: "spin 1s linear infinite" }} />
+              <span style={{ fontSize: 15, fontWeight: "bold", color: "#00e5ff", textShadow: "0 0 10px rgba(0,229,255,0.3)" }}>CONNECTING TO THE ARENA...</span>
+              <style>{`
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+              `}</style>
+            </div>
+          ) : !user ? (
+            <AuthPage />
+          ) : !userProfile ? (
+            <NicknameSelection uid={user.uid} onComplete={(profile) => setUserProfile(profile)} />
+          ) : (
+            <>
+              {screen === "home" && <Home setScreen={setScreen} />}
+              {screen === "stats" && <StatsDashboard setScreen={setScreen} />}
+              {screen === "history" && <MatchHistory setScreen={setScreen} />}
+              {screen === "practice" && <PracticeGame setScreen={setScreen} />}
+              {screen === "leaderboard" && (
+                <Suspense
+                  fallback={
+                    <div
+                      style={{
+                        minHeight: "100vh",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "white",
+                        fontSize: 18
+                      }}
+                    >
+                      Loading leaderboard...
+                    </div>
+                  }
+                >
+                  <Leaderboard setScreen={setScreen} />
+                </Suspense>
+              )}
+              {screen === "multiplayer" && <Multiplayer setScreen={setScreen} setRoom={setRoom} />}
+              {screen === "lobby" && <Lobby setScreen={setScreen} room={room} setRoom={setRoom} />}
+              {screen === "game" && (
+                <Game
+                  setScreen={setScreen}
+                  players={players}
+                  setPlayers={setPlayers}
+                  history={history}
+                  setHistory={setHistory}
+                  round={round}
+                  setRound={setRound}
+                />
+              )}
+              {screen === "online-game" && <OnlineGame room={room} setRoom={setRoom} setScreen={setScreen} />}
+            </>
           )}
-          {screen === "multiplayer" && <Multiplayer setScreen={setScreen} setRoom={setRoom} />}
-          {screen === "lobby" && <Lobby setScreen={setScreen} room={room} setRoom={setRoom} />}
-          {screen === "game" && (
-            <Game
-              setScreen={setScreen}
-              players={players}
-              setPlayers={setPlayers}
-              history={history}
-              setHistory={setHistory}
-              round={round}
-              setRound={setRound}
-            />
-          )}
-          {screen === "online-game" && <OnlineGame room={room} setRoom={setRoom} setScreen={setScreen} />}
         </ErrorBoundary>
       </div>
     </>

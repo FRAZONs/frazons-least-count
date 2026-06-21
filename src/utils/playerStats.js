@@ -119,7 +119,8 @@ export function getCareerPoints() {
     const onlineWins = Number(stats.onlineMatchesWon) || 0;
     const offlineWins = Number(stats.offlineMatchesWon) || 0;
     const rounds = Number(stats.totalRoundsPlayed) || 0;
-    return (onlineWins * 150) + (offlineWins * 50) + (rounds * 5);
+    const bonusXP = Number(stats.bonusXP) || 0;
+    return (onlineWins * 150) + (offlineWins * 50) + (rounds * 5) + bonusXP;
   } catch {
     return 0;
   }
@@ -274,5 +275,202 @@ export async function getTopRankedPlayers(db, limit = 100) {
   } catch (error) {
     console.error("Failed to fetch top ranked players:", error);
     return [];
+  }
+}
+
+export function initializeQuests(forceReset = false) {
+  try {
+    const saved = localStorage.getItem("frazons-quest-progress");
+    const now = Date.now();
+    const todayStr = new Date().toISOString().split("T")[0];
+    
+    let progress = saved ? JSON.parse(saved) : null;
+    
+    const defaultDailies = [
+      { id: "daily_win_bot", title: "Warmup: Win 1 Practice Match", current: 0, target: 1, xpReward: 50, claimed: false },
+      { id: "daily_declare_low", title: "Showdown: Declare with <10 pts", current: 0, target: 1, xpReward: 100, claimed: false },
+      { id: "daily_slash", title: "Slash Master: Perform a Card Slash", current: 0, target: 1, xpReward: 150, claimed: false }
+    ];
+    
+    const defaultWeeklies = [
+      { id: "weekly_ranked_plays", title: "Gladiator: Complete 5 Ranked Duels", current: 0, target: 5, xpReward: 300, claimed: false },
+      { id: "weekly_low_win", title: "Least Count: Match win with <20 pts", current: 0, target: 1, xpReward: 500, claimed: false },
+      { id: "weekly_ranked_wins", title: "Dominator: Win 3 Ranked Matches", current: 0, target: 3, xpReward: 400, claimed: false }
+    ];
+
+    if (!progress) {
+      progress = {
+        lastCheckedDaily: todayStr,
+        lastCheckedWeekly: now,
+        dailyQuests: defaultDailies,
+        weeklyQuests: defaultWeeklies
+      };
+      localStorage.setItem("frazons-quest-progress", JSON.stringify(progress));
+      return progress;
+    }
+
+    let changed = false;
+
+    if (progress.lastCheckedDaily !== todayStr || forceReset) {
+      progress.dailyQuests = defaultDailies;
+      progress.lastCheckedDaily = todayStr;
+      changed = true;
+    }
+
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    if (now - progress.lastCheckedWeekly >= sevenDaysMs || forceReset) {
+      progress.weeklyQuests = defaultWeeklies;
+      progress.lastCheckedWeekly = now;
+      changed = true;
+    }
+
+    if (changed) {
+      localStorage.setItem("frazons-quest-progress", JSON.stringify(progress));
+    }
+    return progress;
+  } catch (e) {
+    console.error("Failed to initialize quests:", e);
+    return null;
+  }
+}
+
+export function updateQuestProgress(questId, increment = 1) {
+  try {
+    const saved = localStorage.getItem("frazons-quest-progress");
+    if (!saved) return;
+    const progress = JSON.parse(saved);
+
+    let updated = false;
+    
+    progress.dailyQuests = progress.dailyQuests.map(q => {
+      if (q.id === questId && !q.claimed) {
+        q.current = Math.min(q.target, q.current + increment);
+        updated = true;
+      }
+      return q;
+    });
+
+    progress.weeklyQuests = progress.weeklyQuests.map(q => {
+      if (q.id === questId && !q.claimed) {
+        q.current = Math.min(q.target, q.current + increment);
+        updated = true;
+      }
+      return q;
+    });
+
+    if (updated) {
+      localStorage.setItem("frazons-quest-progress", JSON.stringify(progress));
+    }
+  } catch (e) {
+    console.error("Failed to update quest progress:", e);
+  }
+}
+
+export async function claimQuestReward(db, questId) {
+  try {
+    const saved = localStorage.getItem("frazons-quest-progress");
+    if (!saved) return 0;
+    const progress = JSON.parse(saved);
+
+    let rewardXP = 0;
+    let found = false;
+
+    progress.dailyQuests = progress.dailyQuests.map(q => {
+      if (q.id === questId && q.current >= q.target && !q.claimed) {
+        q.claimed = true;
+        rewardXP = q.xpReward;
+        found = true;
+      }
+      return q;
+    });
+
+    if (!found) {
+      progress.weeklyQuests = progress.weeklyQuests.map(q => {
+        if (q.id === questId && q.current >= q.target && !q.claimed) {
+          q.claimed = true;
+          rewardXP = q.xpReward;
+          found = true;
+        }
+        return q;
+      });
+    }
+
+    if (found && rewardXP > 0) {
+      localStorage.setItem("frazons-quest-progress", JSON.stringify(progress));
+      
+      const statsSaved = localStorage.getItem("frazons-career-stats");
+      const stats = statsSaved ? JSON.parse(statsSaved) : {};
+      stats.bonusXP = (Number(stats.bonusXP) || 0) + rewardXP;
+      localStorage.setItem("frazons-career-stats", JSON.stringify(stats));
+
+      const rawName = localStorage.getItem("playerName") || "";
+      if (rawName) {
+        const pKey = rawName.split("-")[0]?.toLowerCase()?.trim();
+        if (pKey) {
+          const { doc, updateDoc, increment } = await import("firebase/firestore");
+          const playerRef = doc(db, "players", pKey);
+          await updateDoc(playerRef, {
+            totalScore: increment(rewardXP)
+          }).catch(() => {});
+        }
+      }
+      return rewardXP;
+    }
+    return 0;
+  } catch (e) {
+    console.error("Failed to claim quest reward:", e);
+    return 0;
+  }
+}
+
+export async function getPlayerProfileByUid(db, uid) {
+  try {
+    const { collection, query, where, getDocs } = await import("firebase/firestore");
+    const q = query(collection(db, "players"), where("uid", "==", uid));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      return snap.docs[0].data();
+    }
+    return null;
+  } catch (error) {
+    console.error("Failed to fetch player profile by UID:", error);
+    return null;
+  }
+}
+
+export async function checkNicknameAvailable(db, nickname) {
+  try {
+    const { doc, getDoc } = await import("firebase/firestore");
+    const pKey = nickname.toLowerCase().trim().replace(/\s+/g, "_");
+    if (!pKey) return false;
+    const playerRef = doc(db, "players", pKey);
+    const snap = await getDoc(playerRef);
+    return !snap.exists();
+  } catch (error) {
+    console.error("Failed to check nickname availability:", error);
+    return false;
+  }
+}
+
+export async function createPlayerProfile(db, uid, nickname, initialStats = {}) {
+  try {
+    const { doc, setDoc } = await import("firebase/firestore");
+    const pKey = nickname.toLowerCase().trim().replace(/\s+/g, "_");
+    const playerRef = doc(db, "players", pKey);
+    const profile = {
+      name: nickname,
+      uid: uid,
+      gamesPlayed: Number(initialStats.gamesPlayed) || 0,
+      wins: Number(initialStats.wins) || 0,
+      totalScore: Number(initialStats.totalScore) || 0,
+      rankedPoints: Number(initialStats.rankedPoints) || 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await setDoc(playerRef, profile);
+    return profile;
+  } catch (error) {
+    console.error("Failed to create player profile:", error);
+    throw error;
   }
 }
