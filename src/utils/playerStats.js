@@ -56,9 +56,13 @@ export async function getTopPlayers(db, limit = 10, sortBy = "wins") {
   try {
     const { collection, query, orderBy, limit: dbLimit, getDocs } = await import("firebase/firestore");
 
+    let sortField = "wins";
+    if (sortBy === "totalScore") sortField = "totalScore";
+    else if (sortBy === "rankedPoints") sortField = "rankedPoints";
+
     const q = query(
       collection(db, "players"),
-      orderBy(sortBy === "wins" ? "wins" : "totalScore", "desc"),
+      orderBy(sortField, "desc"),
       dbLimit(limit)
     );
 
@@ -151,6 +155,124 @@ export async function getMatchHistoryFromDatabase(db, pKey) {
     return matches.slice(0, 30);
   } catch (error) {
     console.error("Failed to fetch match history from database:", error);
+    return [];
+  }
+}
+
+export function getRankTier(rp = 0, isTop100 = false) {
+  if (isTop100 && rp >= 3400) {
+    return { name: "Joker", color: "#ff007f", icon: "🃏", levelName: "Joker 🃏" };
+  }
+
+  const tiers = [
+    { name: "Ace 1", min: 3800, color: "#e11d48", icon: "🅰️" },
+    { name: "Ace 2", min: 3700, color: "#e11d48", icon: "🅰️" },
+    { name: "Ace 3", min: 3600, color: "#e11d48", icon: "🅰️" },
+    { name: "Ace 4", min: 3500, color: "#e11d48", icon: "🅰️" },
+    { name: "Ace 5", min: 3400, color: "#e11d48", icon: "🅰️" },
+    
+    { name: "King 1", min: 3300, color: "#fbbf24", icon: "👑" },
+    { name: "King 2", min: 3200, color: "#fbbf24", icon: "👑" },
+    { name: "King 3", min: 3100, color: "#fbbf24", icon: "👑" },
+    { name: "King 4", min: 3000, color: "#fbbf24", icon: "👑" },
+    { name: "King 5", min: 2900, color: "#fbbf24", icon: "👑" },
+    
+    { name: "Queen 1", min: 2800, color: "#ec4899", icon: "👸" },
+    { name: "Queen 2", min: 2700, color: "#ec4899", icon: "👸" },
+    { name: "Queen 3", min: 2600, color: "#ec4899", icon: "👸" },
+    { name: "Queen 4", min: 2500, color: "#ec4899", icon: "👸" },
+    { name: "Queen 5", min: 2400, color: "#ec4899", icon: "👸" },
+    
+    { name: "Jack 1", min: 2300, color: "#3b82f6", icon: "⚔️" },
+    { name: "Jack 2", min: 2200, color: "#3b82f6", icon: "⚔️" },
+    { name: "Jack 3", min: 2100, color: "#3b82f6", icon: "⚔️" },
+    { name: "Jack 4", min: 2000, color: "#3b82f6", icon: "⚔️" },
+    { name: "Jack 5", min: 1900, color: "#3b82f6", icon: "⚔️" },
+    
+    { name: "Diamond 1", min: 1800, color: "#06b6d4", icon: "💎" },
+    { name: "Diamond 2", min: 1700, color: "#06b6d4", icon: "💎" },
+    { name: "Diamond 3", min: 1600, color: "#06b6d4", icon: "💎" },
+    { name: "Diamond 4", min: 1500, color: "#06b6d4", icon: "💎" },
+    { name: "Diamond 5", min: 1400, color: "#06b6d4", icon: "💎" },
+    
+    { name: "Platinum 1", min: 1300, color: "#a855f7", icon: "💿" },
+    { name: "Platinum 2", min: 1200, color: "#a855f7", icon: "💿" },
+    { name: "Platinum 3", min: 1100, color: "#a855f7", icon: "💿" },
+    { name: "Platinum 4", min: 1000, color: "#a855f7", icon: "💿" },
+    
+    { name: "Gold 1", min: 900, color: "#eab308", icon: "🥇" },
+    { name: "Gold 2", min: 800, color: "#eab308", icon: "🥇" },
+    { name: "Gold 3", min: 700, color: "#eab308", icon: "🥇" },
+    { name: "Gold 4", min: 600, color: "#eab308", icon: "🥇" },
+    
+    { name: "Silver 1", min: 500, color: "#9ca3af", icon: "🥈" },
+    { name: "Silver 2", min: 400, color: "#9ca3af", icon: "🥈" },
+    { name: "Silver 3", min: 300, color: "#9ca3af", icon: "🥈" },
+    
+    { name: "Bronze 1", min: 200, color: "#b45309", icon: "🥉" },
+    { name: "Bronze 2", min: 100, color: "#b45309", icon: "🥉" },
+    { name: "Bronze 3", min: 0, color: "#b45309", icon: "🥉" }
+  ];
+
+  const tier = tiers.find(t => rp >= t.min) || tiers[tiers.length - 1];
+  return { ...tier, levelName: `${tier.name} ${tier.icon}` };
+}
+
+export async function savePlayerRankedStats(db, playerName, rankChange) {
+  try {
+    const { doc, setDoc, getDoc } = await import("firebase/firestore");
+    const pKey = playerName.trim().toLowerCase();
+    const playerRef = doc(db, "players", pKey);
+    const playerSnap = await getDoc(playerRef);
+
+    const currentRP = Number(localStorage.getItem("frazons-ranked-points")) || 0;
+    const newRP = Math.max(0, currentRP + rankChange);
+    localStorage.setItem("frazons-ranked-points", newRP.toString());
+
+    if (playerSnap.exists()) {
+      const current = playerSnap.data();
+      const updatedRP = Math.max(0, (Number(current.rankedPoints) || 0) + rankChange);
+      await setDoc(playerRef, {
+        ...current,
+        name: playerName,
+        rankedPoints: updatedRP,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } else {
+      await setDoc(playerRef, {
+        name: playerName,
+        gamesPlayed: 0,
+        wins: 0,
+        totalScore: 0,
+        rankedPoints: newRP,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
+  } catch (error) {
+    console.error("Failed to save player ranked stats:", error);
+  }
+}
+
+export async function getTopRankedPlayers(db, limit = 100) {
+  try {
+    const { collection, query, orderBy, limit: dbLimit, getDocs } = await import("firebase/firestore");
+    const q = query(
+      collection(db, "players"),
+      orderBy("rankedPoints", "desc"),
+      dbLimit(limit)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc, index) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        rank: index + 1
+      };
+    });
+  } catch (error) {
+    console.error("Failed to fetch top ranked players:", error);
     return [];
   }
 }

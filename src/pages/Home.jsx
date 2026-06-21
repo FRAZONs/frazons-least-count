@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { STORAGE_KEYS, BUTTON_STYLES, HOME_PAGE_STYLE } from "../constants";
 import CustomizationsModal from "../components/CustomizationsModal";
-import { getCareerPoints } from "../utils/playerStats";
+import { getCareerPoints, getRankTier } from "../utils/playerStats";
 
 export default function Home({ setScreen }) {
   const [showCustomize, setShowCustomize] = useState(false);
@@ -14,6 +14,10 @@ export default function Home({ setScreen }) {
   const levelXP = xp - xpCurrentThreshold;
   const nextLevelXP = xpNextThreshold - xpCurrentThreshold;
   const progressPercent = Math.min(100, Math.max(0, (levelXP / nextLevelXP) * 100));
+
+  const rp = Number(localStorage.getItem("frazons-ranked-points")) || 0;
+  const isTop100 = localStorage.getItem("frazons-is-top-100") === "true";
+  const rankInfo = getRankTier(rp, isTop100);
 
   const clearStorage = () => {
     localStorage.removeItem(STORAGE_KEYS.players);
@@ -79,8 +83,25 @@ export default function Home({ setScreen }) {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 24 }}>👤</span>
               <div>
-                <div style={{ fontWeight: "bold", fontSize: 15 }}>{localStorage.getItem("playerName")?.split("-")?.[0] || "Guest Player"}</div>
-                <div style={{ fontSize: 11, color: "#aaa" }}>Ranked Card Duelist</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <div style={{ fontWeight: "bold", fontSize: 15 }}>{localStorage.getItem("playerName")?.split("-")?.[0] || "Guest Player"}</div>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: "bold",
+                      background: "rgba(255, 255, 255, 0.04)",
+                      border: `1px solid ${rankInfo.color}44`,
+                      padding: "2px 6px",
+                      borderRadius: 6,
+                      color: rankInfo.color,
+                      textShadow: `0 0 5px ${rankInfo.color}33`,
+                      whiteSpace: "nowrap"
+                    }}
+                  >
+                    {rankInfo.levelName} ({rp} RP)
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: "#aaa", marginTop: 2 }}>Ranked Card Duelist</div>
               </div>
             </div>
             <div style={{ background: "rgba(0, 229, 255, 0.15)", border: "1px solid rgba(0, 229, 255, 0.3)", color: "#00e5ff", fontWeight: "bold", padding: "4px 10px", borderRadius: 8, fontSize: 12 }}>

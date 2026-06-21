@@ -102,6 +102,7 @@ const actionButton = (background, disabled = false) => ({
 
 export default function OnlineGame({ room, setRoom, setScreen }) {
   const [selectedCards, setSelectedCards] = useState([]);
+  const [rankedUpdate, setRankedUpdate] = useState(null);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const playerName = localStorage.getItem("playerName") || "";
@@ -260,6 +261,53 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
         updateLocalStats({ onlineMatchesWon: 1 });
       }
 
+      // If this is a ranked room, perform Ranked Points (RP) calculations
+      if (room?.isRanked) {
+        const sortedPlayers = Object.entries(room.totals || {})
+          .sort((a, b) => a[1] - b[1])
+          .map(entry => entry[0]);
+        const placement = sortedPlayers.indexOf(playerName) + 1;
+        const playerCount = sortedPlayers.length;
+
+        let rpChange = 0;
+        if (playerCount === 4) {
+          if (placement === 1) rpChange = 50;
+          else if (placement === 2) rpChange = 20;
+          else if (placement === 3) rpChange = -15;
+          else if (placement === 4) rpChange = -30;
+        } else if (playerCount === 3) {
+          if (placement === 1) rpChange = 40;
+          else if (placement === 2) rpChange = 10;
+          else if (placement === 3) rpChange = -20;
+        } else if (playerCount === 2) {
+          if (placement === 1) rpChange = 30;
+          else if (placement === 2) rpChange = -15;
+        } else {
+          if (placement === 1) rpChange = 20;
+          else rpChange = -10;
+        }
+
+        const oldRP = Number(localStorage.getItem("frazons-ranked-points")) || 0;
+        const newRP = Math.max(0, oldRP + rpChange);
+        const oldRank = getRankTier(oldRP);
+        const newRank = getRankTier(newRP);
+
+        setRankedUpdate({
+          rpChange,
+          oldRP,
+          newRP,
+          oldRankName: oldRank.levelName,
+          newRankName: newRank.levelName,
+          oldColor: oldRank.color,
+          newColor: newRank.color,
+          placement
+        });
+
+        const myParticipant = room?.players?.find(p => playerKey(p.name) === playerName);
+        const myDisplayName = myParticipant ? myParticipant.name : playerName;
+        savePlayerRankedStats(db, myDisplayName, rpChange);
+      }
+
       // Only the host logs the finished match to the database to prevent duplicate writes!
       if (isHost) {
         const playersList = room?.players || [];
@@ -278,14 +326,15 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
           }),
           playersKeys: playersList.map(p => playerKey(p.name)),
           totals: room.totals || {},
-          roundCount: room.roundNumber || 1
+          roundCount: room.roundNumber || 1,
+          isRanked: Boolean(room.isRanked)
         };
         saveMatchToDatabase(db, matchData);
       }
     } else if (room?.status !== "finished") {
       matchFinishedTracked.current = false;
     }
-  }, [room?.status, room?.matchWinner, room?.winner, playerName, isHost, room?.players, room?.roomCode, room?.totals, room?.roundNumber]);
+  }, [room?.status, room?.matchWinner, room?.winner, playerName, isHost, room?.players, room?.roomCode, room?.totals, room?.roundNumber, room?.isRanked]);
 
   useEffect(() => {
     if (room?.roundResult && room.roundResult !== lastLoggedResult.current) {
@@ -1139,6 +1188,9 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
             {displayTotals.map((player) => {
               const isActiveTurn = currentPlayer && playerKey(currentPlayer.name) === player.key;
               const isMe = player.key === playerName;
+              const roomPlayer = (room?.players || []).find(p => playerKey(p.name) === player.key);
+              const playerRP = roomPlayer?.rp || 0;
+              const rankInfo = getRankTier(playerRP);
               const statusColor = player.eliminated ? "#ef4444" : isActiveTurn ? "#00e5ff" : "rgba(255, 255, 255, 0.15)";
 
               // Fan of card backs
@@ -1193,8 +1245,22 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
                         {player.eliminated ? "💀" : isMe ? "👤" : "🎮"}
                       </span>
                       <div>
-                        <div style={{ fontWeight: "bold", color: isMe ? "#ff00c8" : "white", fontSize: 16 }}>
-                          {player.name} {isMe && "(You)"}
+                        <div style={{ fontWeight: "bold", color: isMe ? "#ff00c8" : "white", fontSize: 16, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <span>{player.name} {isMe && "(You)"}</span>
+                          <span
+                            style={{
+                              fontSize: 9,
+                              fontWeight: "bold",
+                              background: "rgba(255, 255, 255, 0.04)",
+                              border: `1px solid ${rankInfo.color}44`,
+                              padding: "1px 5px",
+                              borderRadius: 4,
+                              color: rankInfo.color,
+                              textShadow: `0 0 3px ${rankInfo.color}22`
+                            }}
+                          >
+                            {rankInfo.levelName}
+                          </span>
                         </div>
                         <div style={{ fontSize: 11, color: player.eliminated ? "#ef4444" : "#aaa" }}>
                           {player.eliminated ? "Eliminated" : isActiveTurn ? "Current Turn" : "Waiting"}
@@ -1837,6 +1903,57 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
                     {result.declarer} {result.declarationWon ? "won" : "lost"} the declaration
                     {result.penalty ? ` and received ${result.penalty} penalty points` : ""}.
                   </p>
+                )}
+
+                {room?.status === "finished" && room?.isRanked && rankedUpdate && (
+                  <div
+                    style={{
+                      background: "rgba(255, 255, 255, 0.03)",
+                      border: "1px solid rgba(255, 255, 255, 0.08)",
+                      borderRadius: 18,
+                      padding: 16,
+                      marginTop: 16,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 12
+                    }}
+                  >
+                    <div style={{ fontSize: 13, color: "#aaa", fontWeight: "bold", letterSpacing: 1 }}>RANKED DUEL SCORECARD</div>
+                    
+                    <div style={{ display: "flex", alignItems: "center", gap: 16, width: "100%", justifyContent: "space-around" }}>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 12, color: "#aaa" }}>Placement</div>
+                        <div style={{ fontSize: 24, fontWeight: "bold", color: "#00ff88" }}>#{rankedUpdate.placement}</div>
+                      </div>
+                      
+                      <div style={{ width: 1, height: 30, background: "rgba(255,255,255,0.12)" }} />
+                      
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 12, color: "#aaa" }}>Rating Change</div>
+                        <div style={{
+                          fontSize: 24,
+                          fontWeight: "bold",
+                          color: rankedUpdate.rpChange >= 0 ? "#00ff88" : "#ff4d4d",
+                          textShadow: rankedUpdate.rpChange >= 0 ? "0 0 10px rgba(0,255,136,0.3)" : "0 0 10px rgba(255,77,77,0.3)"
+                        }}>
+                          {rankedUpdate.rpChange >= 0 ? `+${rankedUpdate.rpChange}` : rankedUpdate.rpChange} RP
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ width: "100%", height: 1, background: "rgba(255,255,255,0.06)" }} />
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 14 }}>
+                      <span style={{ color: rankedUpdate.oldColor, fontWeight: "bold" }}>{rankedUpdate.oldRankName}</span>
+                      <span style={{ color: "#aaa" }}>➡️</span>
+                      <span style={{ color: rankedUpdate.newColor, fontWeight: "bold" }}>{rankedUpdate.newRankName}</span>
+                    </div>
+
+                    <div style={{ fontSize: 11, color: "#888" }}>
+                      Total Arena Rating: <strong>{rankedUpdate.newRP} RP</strong>
+                    </div>
+                  </div>
                 )}
 
                 <div style={{ display: "flex", gap: 12, marginTop: 20 }}>

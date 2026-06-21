@@ -3,6 +3,7 @@ import { doc, onSnapshot, runTransaction, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { createRoundState, getSettings, playerKey } from "../utils/onlineGame";
 import { useToast } from "../hooks/useToast";
+import { getRankTier } from "../utils/playerStats";
 
 export default function Lobby({ setScreen, room, setRoom }) {
   const [loading, setLoading] = useState(false);
@@ -162,25 +163,56 @@ export default function Lobby({ setScreen, room, setRoom }) {
         padding: 20
       }}
     >
-      <div style={{ width: "100%", maxWidth: 540, textAlign: "center" }}>
-        <h1>Room Lobby</h1>
+      <div style={{ width: "100%", maxWidth: 540, textAlign: "center", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+        <h1 style={{ textShadow: room?.isRanked ? "0 0 15px rgba(255, 0, 127, 0.4)" : "0 0 10px rgba(192, 132, 252, 0.3)" }}>
+          {room?.isRanked ? "⚔️ Ranked Arena Lobby" : "Casual Room Lobby"}
+        </h1>
+
+        {room?.isRanked && (
+          <div
+            style={{
+              background: "linear-gradient(90deg, rgba(255, 0, 127, 0.1), rgba(121, 40, 202, 0.1))",
+              border: "1px solid rgba(255, 0, 127, 0.3)",
+              borderRadius: 14,
+              padding: 12,
+              color: "#ff007f",
+              fontWeight: "bold",
+              fontSize: 14,
+              marginBottom: 16,
+              boxShadow: "0 0 10px rgba(255, 0, 127, 0.1)"
+            }}
+          >
+            ⚔️ RANKED DUEL Matchmaking (Max 4 Players)
+          </div>
+        )}
+
         <div
           style={{
             padding: 24,
             borderRadius: 18,
-            background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.15)"
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 4px 15px rgba(0,0,0,0.15)"
           }}
         >
-          <div style={{ color: "#aaa", fontSize: 13 }}>ROOM CODE</div>
-          <div style={{ fontSize: 52, fontWeight: "bold", color: "#c084fc" }}>
+          <div style={{ color: "#aaa", fontSize: 13, fontWeight: "bold", letterSpacing: 1 }}>ROOM DUEL CODE</div>
+          <div style={{ fontSize: 44, fontWeight: "black", color: room?.isRanked ? "#ff007f" : "#00e5ff", letterSpacing: 2, margin: "8px 0" }}>
             {room?.roomCode}
           </div>
           <button
             onClick={() => navigator.clipboard.writeText(room?.roomCode)}
-            style={{ padding: 8, borderRadius: 8, border: 0, cursor: "pointer" }}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.15)",
+              background: "rgba(255,255,255,0.06)",
+              color: "white",
+              fontSize: 12,
+              fontWeight: "bold",
+              cursor: "pointer"
+            }}
           >
-            Copy code
+            📋 Copy Code
           </button>
         </div>
 
@@ -189,39 +221,65 @@ export default function Lobby({ setScreen, room, setRoom }) {
             marginTop: 20,
             padding: 20,
             borderRadius: 18,
-            background: "rgba(255,255,255,0.08)"
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)"
           }}
         >
           {(room?.players || []).map((player) => {
             const key = playerKey(player.name);
             const ready = room?.playerStatus?.[key]?.status === "ready";
+            const rankInfo = getRankTier(player.rp || 0);
+
             return (
               <div
                 key={key}
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
+                  alignItems: "center",
                   padding: 12,
                   marginBottom: 8,
-                  borderRadius: 10,
-                  background: "rgba(255,255,255,0.06)"
+                  borderRadius: 12,
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.04)"
                 }}
               >
-                <span>{playerKey(room?.host?.name) === key ? "Host: " : ""}{player.name}</span>
-                <span style={{ color: ready ? "#00ff88" : "#fbbf24" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontWeight: "bold" }}>
+                    {playerKey(room?.host?.name) === key ? "👑 " : ""}{player.name}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: "bold",
+                      background: "rgba(255, 255, 255, 0.04)",
+                      border: `1px solid ${rankInfo.color}44`,
+                      padding: "2px 6px",
+                      borderRadius: 6,
+                      color: rankInfo.color,
+                      textShadow: `0 0 5px ${rankInfo.color}33`
+                    }}
+                  >
+                    {rankInfo.levelName}
+                  </span>
+                </div>
+                <span style={{ color: ready ? "#00ff88" : "#fbbf24", fontWeight: "bold", fontSize: 13 }}>
                   {ready ? "Ready" : "Waiting"}
                 </span>
               </div>
             );
           })}
-          <div style={{ color: "#aaa", fontSize: 13 }}>
+          <div style={{ color: "#aaa", fontSize: 13, marginTop: 8, fontWeight: "bold" }}>
             Ready {readyCount}/{room?.players?.length || 0}
           </div>
         </div>
 
-        <div style={{ marginTop: 16, color: "#c4b5fd", fontSize: 13 }}>
-          Limit {settings.maxScore} | Penalty {settings.declarationPenalty} |
-          Cards {settings.startingCards} | Turn {settings.turnSeconds}s
+        <div style={{ marginTop: 16, color: "#c4b5fd", fontSize: 12, fontWeight: "bold" }}>
+          {room?.isRanked ? (
+            <span style={{ color: "#ff007f" }}>🔒 Ranked Duel Parameters Locked (Standard Deck & Speed Turn timer)</span>
+          ) : (
+            `Limit ${settings.maxScore} | Penalty ${settings.declarationPenalty} | Cards ${settings.startingCards} | Turn ${settings.turnSeconds}s`
+          )}
         </div>
 
         {/* Lobby Chat Room */}
