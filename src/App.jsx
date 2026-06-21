@@ -38,6 +38,13 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [isGuest, setIsGuest] = useState(() => {
+    try {
+      return localStorage.getItem("frazons-is-guest") === "true";
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -311,11 +318,15 @@ export default function App() {
               />
             </div>
 
-            {user && (
+            {(user || isGuest) && (
               <button
                 onClick={async () => {
                   try {
-                    await signOut(auth);
+                    if (user) {
+                      await signOut(auth);
+                    }
+                    setIsGuest(false);
+                    localStorage.removeItem("frazons-is-guest");
                     localStorage.removeItem("playerName");
                     localStorage.removeItem("frazons-ranked-points");
                     localStorage.removeItem("frazons-career-stats");
@@ -342,7 +353,7 @@ export default function App() {
                 onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.25)"}
                 onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.15)"}
               >
-                🚪 Sign Out
+                🚪 {isGuest ? "Exit Guest Mode / Sign In" : "Sign Out"}
               </button>
             )}
 
@@ -430,13 +441,18 @@ export default function App() {
                 }
               `}</style>
             </div>
-          ) : !user ? (
-            <AuthPage />
-          ) : !userProfile ? (
+          ) : (!user && !isGuest) ? (
+            <AuthPage
+              onGuestMode={() => {
+                setIsGuest(true);
+                localStorage.setItem("frazons-is-guest", "true");
+              }}
+            />
+          ) : (!userProfile && !isGuest) ? (
             <NicknameSelection uid={user.uid} onComplete={(profile) => setUserProfile(profile)} />
           ) : (
             <>
-              {screen === "home" && <Home setScreen={setScreen} />}
+              {screen === "home" && <Home setScreen={setScreen} isGuest={isGuest} />}
               {screen === "stats" && <StatsDashboard setScreen={setScreen} />}
               {screen === "history" && <MatchHistory setScreen={setScreen} />}
               {screen === "practice" && <PracticeGame setScreen={setScreen} />}
@@ -460,7 +476,18 @@ export default function App() {
                   <Leaderboard setScreen={setScreen} />
                 </Suspense>
               )}
-              {screen === "multiplayer" && <Multiplayer setScreen={setScreen} setRoom={setRoom} />}
+              {screen === "multiplayer" && (
+                <Multiplayer
+                  setScreen={setScreen}
+                  setRoom={setRoom}
+                  isGuest={isGuest}
+                  onExitGuestMode={() => {
+                    setIsGuest(false);
+                    localStorage.removeItem("frazons-is-guest");
+                    setScreen("home");
+                  }}
+                />
+              )}
               {screen === "lobby" && <Lobby setScreen={setScreen} room={room} setRoom={setRoom} />}
               {screen === "game" && (
                 <Game

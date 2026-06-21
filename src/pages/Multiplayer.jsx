@@ -48,9 +48,17 @@ const tabStyle = (active) => ({
   transition: "all 0.2s"
 });
 
-export default function Multiplayer({ setScreen, setRoom }) {
+export default function Multiplayer({ setScreen, setRoom, isGuest, onExitGuestMode }) {
   const [activeTab, setActiveTab] = useState("casual"); // "casual" or "ranked"
-  const [playerName, setPlayerName] = useState("");
+  const [playerName, setPlayerName] = useState(() => {
+    try {
+      const saved = localStorage.getItem("playerName");
+      if (saved) {
+        return saved.split("_")[0];
+      }
+    } catch {}
+    return "";
+  });
   const [roomCode, setRoomCode] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [roomSettings, setRoomSettings] = useState(DEFAULT_ONLINE_SETTINGS);
@@ -339,6 +347,22 @@ export default function Multiplayer({ setScreen, setRoom }) {
 
             <button onClick={joinRoom} disabled={loading} style={buttonStyle("linear-gradient(135deg, #00b894, #00cec9)")}>
               Join Room
+            </button>
+          </div>
+        ) : isGuest ? (
+          <div style={{ padding: "30px 10px", display: "flex", flexDirection: "column", gap: 15, alignItems: "center" }}>
+            <div style={{ fontSize: 40 }}>🔒</div>
+            <div style={{ fontSize: 16, fontWeight: "bold", color: "#ff007f", textShadow: "0 0 10px rgba(255,0,127,0.3)" }}>
+              RANKED QUEUE LOCKED
+            </div>
+            <p style={{ fontSize: 13, color: "#aaa", margin: 0, lineHeight: 1.5 }}>
+              Ranked matchmaking requires a duelist account. Sign in to climb tiers, track stats, and save your progress!
+            </p>
+            <button
+              onClick={onExitGuestMode}
+              style={{ ...buttonStyle("linear-gradient(135deg, #ff007f, #7928ca)"), marginTop: 5 }}
+            >
+              Sign In to Unlock
             </button>
           </div>
         ) : (
