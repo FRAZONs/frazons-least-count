@@ -245,6 +245,19 @@ export default function Lobby({ setScreen, room, setRoom }) {
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  {player.avatar && (
+                    <div style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {player.avatar.startsWith("data:image") || player.avatar.startsWith("http") ? (
+                        <img
+                          src={player.avatar}
+                          alt=""
+                          style={{ width: 24, height: 24, borderRadius: "50%", objectFit: "cover", border: "1px solid rgba(255,255,255,0.2)" }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: 16 }}>{player.avatar}</span>
+                      )}
+                    </div>
+                  )}
                   <span style={{ fontWeight: "bold" }}>
                     {playerKey(room?.host?.name) === key ? "👑 " : ""}{player.name}
                   </span>

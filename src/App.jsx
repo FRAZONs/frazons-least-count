@@ -46,6 +46,44 @@ export default function App() {
     }
   });
 
+  const settingsFileInputRef = useRef(null);
+
+  const handleSettingsCustomAvatarUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image file");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = async () => {
+        const canvas = document.createElement("canvas");
+        const maxDim = 120;
+        let width = img.width;
+        let height = img.height;
+
+        const size = Math.min(width, height);
+        const xOffset = (width - size) / 2;
+        const yOffset = (height - size) / 2;
+
+        canvas.width = maxDim;
+        canvas.height = maxDim;
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, xOffset, yOffset, size, size, 0, 0, maxDim, maxDim);
+
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+        await updateAvatar(compressedBase64);
+      };
+    };
+  };
+
   const updateAvatar = async (newAvatar) => {
     try {
       const rawName = localStorage.getItem("playerName");
@@ -338,14 +376,22 @@ export default function App() {
             {user && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12, background: "rgba(255, 255, 255, 0.03)", padding: 16, borderRadius: 16, border: "1px solid rgba(255, 255, 255, 0.08)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span style={{ fontSize: 40, filter: "drop-shadow(0 0 8px rgba(0, 229, 255, 0.3))" }}>
-                    {userProfile?.avatar || localStorage.getItem("frazons-player-avatar") || "👾"}
+                  <span style={{ fontSize: 40, filter: "drop-shadow(0 0 8px rgba(0, 229, 255, 0.3))", minWidth: 44, height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {(userProfile?.avatar || localStorage.getItem("frazons-player-avatar") || "👾").startsWith("data:image") ? (
+                      <img
+                        src={userProfile?.avatar || localStorage.getItem("frazons-player-avatar") || "👾"}
+                        alt="Profile"
+                        style={{ width: 38, height: 38, borderRadius: "50%", objectFit: "cover", border: "2px solid #00e5ff" }}
+                      />
+                    ) : (
+                      userProfile?.avatar || localStorage.getItem("frazons-player-avatar") || "👾"
+                    )}
                   </span>
                   <div>
-                    <div style={{ fontWeight: "bold", fontSize: 15, color: "#00e5ff" }}>
+                    <div style={{ fontWeight: "bold", fontSize: 15, color: "#00e5ff", textAlign: "left" }}>
                       {userProfile?.name || localStorage.getItem("playerName")?.split("_")?.[0] || "Duelist"}
                     </div>
-                    <div style={{ fontSize: 11, color: "#aaa" }}>Gamer Profile</div>
+                    <div style={{ fontSize: 11, color: "#aaa", textAlign: "left" }}>Gamer Profile</div>
                   </div>
                 </div>
 
@@ -370,6 +416,34 @@ export default function App() {
                       </button>
                     ))}
                   </div>
+                  {/* Upload custom pic */}
+                  <input
+                    type="file"
+                    ref={settingsFileInputRef}
+                    onChange={handleSettingsCustomAvatarUpload}
+                    style={{ display: "none" }}
+                    accept="image/*"
+                  />
+                  <button
+                    onClick={() => settingsFileInputRef.current?.click()}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: 10,
+                      border: "1px dashed rgba(0, 229, 255, 0.35)",
+                      background: "rgba(0, 229, 255, 0.04)",
+                      color: "#00e5ff",
+                      fontSize: 13,
+                      fontWeight: "bold",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      marginTop: 6
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0, 229, 255, 0.15)"}
+                    onMouseLeave={(e) => e.currentTarget.style.background = "rgba(0, 229, 255, 0.04)"}
+                  >
+                    📤 Upload Custom Photo
+                  </button>
                 </div>
               </div>
             )}

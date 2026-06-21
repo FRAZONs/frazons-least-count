@@ -91,8 +91,16 @@ export default function Home({ setScreen }) {
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 32, filter: "drop-shadow(0 0 8px rgba(0, 229, 255, 0.35))" }}>
-                {localStorage.getItem("frazons-player-avatar") || "👾"}
+              <span style={{ filter: "drop-shadow(0 0 8px rgba(0, 229, 255, 0.35))", width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {(localStorage.getItem("frazons-player-avatar") || "👾").startsWith("data:image") ? (
+                  <img
+                    src={localStorage.getItem("frazons-player-avatar")}
+                    alt="Avatar"
+                    style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", border: "2px solid #00e5ff" }}
+                  />
+                ) : (
+                  <span style={{ fontSize: 32 }}>{localStorage.getItem("frazons-player-avatar") || "👾"}</span>
+                )}
               </span>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

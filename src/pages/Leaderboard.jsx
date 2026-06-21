@@ -191,7 +191,17 @@ export default function Leaderboard({ setScreen }) {
                 </div>
 
                 {/* Avatar */}
-                <div style={{ fontSize: 28 }}>{player.avatar || "😈"}</div>
+                <div style={{ width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {(player.avatar || "😈").startsWith("data:image") ? (
+                    <img
+                      src={player.avatar || "😈"}
+                      alt=""
+                      style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", border: "1px solid rgba(255,255,255,0.15)" }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: 28 }}>{player.avatar || "😈"}</span>
+                  )}
+                </div>
 
                 {/* Player details */}
                 <div style={{ flex: 1 }}>

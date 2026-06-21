@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { db } from "../firebase";
 import { checkNicknameAvailable, createPlayerProfile } from "../utils/playerStats";
 import { useToast } from "../hooks/useToast";
@@ -40,6 +40,44 @@ export default function NicknameSelection({ uid, onComplete }) {
   const [selectedAvatar, setSelectedAvatar] = useState("👾");
   const [loading, setLoading] = useState(false);
   const { error: showError, success } = useToast();
+  const fileInputRef = useRef(null);
+
+  const handleCustomAvatarUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      showError("Please select a valid image file");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxDim = 120;
+        let width = img.width;
+        let height = img.height;
+
+        const size = Math.min(width, height);
+        const xOffset = (width - size) / 2;
+        const yOffset = (height - size) / 2;
+
+        canvas.width = maxDim;
+        canvas.height = maxDim;
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, xOffset, yOffset, size, size, 0, 0, maxDim, maxDim);
+
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+        setSelectedAvatar(compressedBase64);
+        success("Custom picture loaded!");
+      };
+    };
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -155,8 +193,16 @@ export default function NicknameSelection({ uid, onComplete }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <label style={{ fontSize: 12, fontWeight: "bold", color: "#aaa" }}>CHOOSE AVATAR</label>
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 16, background: "rgba(255,255,255,0.03)", padding: 12, borderRadius: 14, border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div style={{ fontSize: 44, filter: "drop-shadow(0 0 8px rgba(0,229,255,0.45))", minWidth: 60, textAlign: "center" }}>
-                {selectedAvatar}
+              <div style={{ fontSize: 44, filter: "drop-shadow(0 0 8px rgba(0,229,255,0.45))", minWidth: 60, height: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {selectedAvatar.startsWith("data:image") ? (
+                  <img
+                    src={selectedAvatar}
+                    alt="Custom Avatar"
+                    style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", border: "2px solid #00e5ff", boxShadow: "0 0 10px rgba(0,229,255,0.4)" }}
+                  />
+                ) : (
+                  selectedAvatar
+                )}
               </div>
               <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
                 {["👾", "🤖", "😈", "🦊", "⚔️", "👑", "💀", "🛸", "🔋", "🌌"].map((a) => (
@@ -179,6 +225,34 @@ export default function NicknameSelection({ uid, onComplete }) {
                 ))}
               </div>
             </div>
+            {/* Custom picture button */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleCustomAvatarUpload}
+              style={{ display: "none" }}
+              accept="image/*"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1px dashed rgba(0, 229, 255, 0.35)",
+                background: "rgba(0, 229, 255, 0.04)",
+                color: "#00e5ff",
+                fontSize: 13,
+                fontWeight: "bold",
+                cursor: "pointer",
+                transition: "all 0.2s ease"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0, 229, 255, 0.15)"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "rgba(0, 229, 255, 0.04)"}
+            >
+              📤 Upload Custom Photo
+            </button>
           </div>
 
           <button

@@ -87,7 +87,7 @@ export default function Multiplayer({ setScreen, setRoom, isGuest, onExitGuestMo
       const roomData = {
         roomCode: code,
         host: { name },
-        players: [{ name, rp, rankName }],
+        players: [{ name, rp, rankName, avatar: localStorage.getItem("frazons-player-avatar") || "👾" }],
         status: "waiting",
         createdAt: Date.now(),
         settings: roomSettings,
@@ -139,7 +139,7 @@ export default function Multiplayer({ setScreen, setRoom, isGuest, onExitGuestMo
           throw new Error("ROOM_FULL");
         }
 
-        const nextPlayers = alreadyJoined ? players : [...players, { name, rp, rankName }];
+        const nextPlayers = alreadyJoined ? players : [...players, { name, rp, rankName, avatar: localStorage.getItem("frazons-player-avatar") || "👾" }];
         transaction.update(roomRef, {
           players: nextPlayers,
           [`playerStatus.${key}`]: { status: "waiting", lastHeartbeat: Date.now() },
@@ -211,7 +211,7 @@ export default function Multiplayer({ setScreen, setRoom, isGuest, onExitGuestMo
             throw new Error("ROOM_FULL");
           }
 
-          const nextPlayers = alreadyJoined ? players : [...players, { name, rp, rankName }];
+          const nextPlayers = alreadyJoined ? players : [...players, { name, rp, rankName, avatar: localStorage.getItem("frazons-player-avatar") || "👾" }];
           transaction.update(roomRef, {
             players: nextPlayers,
             [`playerStatus.${key}`]: { status: "waiting", lastHeartbeat: Date.now() },
@@ -227,7 +227,7 @@ export default function Multiplayer({ setScreen, setRoom, isGuest, onExitGuestMo
           roomCode: code,
           isRanked: true,
           host: { name },
-          players: [{ name, rp, rankName }],
+          players: [{ name, rp, rankName, avatar: localStorage.getItem("frazons-player-avatar") || "👾" }],
           status: "waiting",
           createdAt: Date.now(),
           settings: {
