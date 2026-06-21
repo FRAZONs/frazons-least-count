@@ -120,3 +120,37 @@ export function getCareerPoints() {
     return 0;
   }
 }
+
+export async function saveMatchToDatabase(db, matchData) {
+  try {
+    const { collection, addDoc } = await import("firebase/firestore");
+    const docRef = await addDoc(collection(db, "matches"), {
+      ...matchData,
+      createdAt: new Date().toISOString()
+    });
+    console.log("Match saved successfully to database: ", docRef.id);
+  } catch (error) {
+    console.error("Failed to save match to database:", error);
+  }
+}
+
+export async function getMatchHistoryFromDatabase(db, pKey) {
+  try {
+    const { collection, query, where, getDocs } = await import("firebase/firestore");
+    const q = query(
+      collection(db, "matches"),
+      where("playersKeys", "array-contains", pKey)
+    );
+    const snapshot = await getDocs(q);
+    const matches = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    // Sort in-memory to prevent requiring composite index creation in Firestore!
+    matches.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return matches.slice(0, 30);
+  } catch (error) {
+    console.error("Failed to fetch match history from database:", error);
+    return [];
+  }
+}

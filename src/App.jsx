@@ -15,6 +15,7 @@ import ToastContainer from "./components/ToastContainer";
 import ErrorBoundary from "./components/ErrorBoundary";
 import StatsDashboard from "./pages/StatsDashboard";
 import PracticeGame from "./pages/PracticeGame";
+import MatchHistory from "./pages/MatchHistory";
 
 const Leaderboard = lazy(() => import("./pages/Leaderboard"));
 
@@ -335,6 +336,7 @@ export default function App() {
         <ErrorBoundary>
           {screen === "home" && <Home setScreen={setScreen} />}
           {screen === "stats" && <StatsDashboard setScreen={setScreen} />}
+          {screen === "history" && <MatchHistory setScreen={setScreen} />}
           {screen === "practice" && <PracticeGame setScreen={setScreen} />}
           {screen === "leaderboard" && (
             <Suspense

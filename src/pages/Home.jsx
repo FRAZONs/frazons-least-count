@@ -1,10 +1,19 @@
 import { useState } from "react";
 import { STORAGE_KEYS, BUTTON_STYLES, HOME_PAGE_STYLE } from "../constants";
 import CustomizationsModal from "../components/CustomizationsModal";
+import { getCareerPoints } from "../utils/playerStats";
 
 export default function Home({ setScreen }) {
   const [showCustomize, setShowCustomize] = useState(false);
   const hasSave = localStorage.getItem(STORAGE_KEYS.players);
+
+  const xp = getCareerPoints();
+  const level = Math.floor(Math.sqrt(xp / 100)) + 1;
+  const xpCurrentThreshold = (level - 1) * (level - 1) * 100;
+  const xpNextThreshold = level * level * 100;
+  const levelXP = xp - xpCurrentThreshold;
+  const nextLevelXP = xpNextThreshold - xpCurrentThreshold;
+  const progressPercent = Math.min(100, Math.max(0, (levelXP / nextLevelXP) * 100));
 
   const clearStorage = () => {
     localStorage.removeItem(STORAGE_KEYS.players);
@@ -48,6 +57,56 @@ export default function Home({ setScreen }) {
         <h1 style={HOME_PAGE_STYLE.title}>FRAZON'S</h1>
         <div style={HOME_PAGE_STYLE.subtitle}>LEAST COUNT</div>
         <p style={HOME_PAGE_STYLE.description}>ONLINE CARD BATTLES</p>
+
+        {/* User Profile Level & XP progress bar */}
+        <div
+          style={{
+            width: "100%",
+            background: "rgba(255, 255, 255, 0.04)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: 20,
+            padding: 16,
+            marginBottom: 20,
+            textAlign: "left",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
+            boxSizing: "border-box"
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 24 }}>👤</span>
+              <div>
+                <div style={{ fontWeight: "bold", fontSize: 15 }}>{localStorage.getItem("playerName")?.split("-")?.[0] || "Guest Player"}</div>
+                <div style={{ fontSize: 11, color: "#aaa" }}>Ranked Card Duelist</div>
+              </div>
+            </div>
+            <div style={{ background: "rgba(0, 229, 255, 0.15)", border: "1px solid rgba(0, 229, 255, 0.3)", color: "#00e5ff", fontWeight: "bold", padding: "4px 10px", borderRadius: 8, fontSize: 12 }}>
+              LVL {level}
+            </div>
+          </div>
+
+          {/* XP Progress Bar */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#aaa" }}>
+              <span>Progress to Lvl {level + 1}</span>
+              <span style={{ fontWeight: "bold", color: "#00ff88" }}>{levelXP} / {nextLevelXP} XP</span>
+            </div>
+            <div style={{ width: "100%", height: 8, background: "rgba(255,255,255,0.06)", borderRadius: 4, overflow: "hidden", position: "relative", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div
+                style={{
+                  width: `${progressPercent}%`,
+                  height: "100%",
+                  background: "linear-gradient(90deg, #00ff88, #00e5ff)",
+                  boxShadow: "0 0 8px rgba(0,255,136,0.6)",
+                  transition: "width 0.8s cubic-bezier(0.4, 0, 0.2, 1)"
+                }}
+              />
+            </div>
+          </div>
+        </div>
 
         {/* Game Modes Section */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
@@ -185,7 +244,7 @@ export default function Home({ setScreen }) {
           )}
         </div>
 
-        {/* Stats & Leaderboard Row */}
+        {/* Stats & Customizations 2x2 Grid */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <button
             onClick={() => setScreen("stats")}
@@ -243,38 +302,63 @@ export default function Home({ setScreen }) {
           >
             🏆 Leaderboard
           </button>
+          <button
+            onClick={() => setScreen("history")}
+            style={{
+              background: "rgba(0, 255, 136, 0.08)",
+              border: "1px solid rgba(0, 255, 136, 0.2)",
+              color: "#00ff88",
+              padding: "12px 14px",
+              borderRadius: 14,
+              fontSize: 13,
+              fontWeight: "bold",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              transition: "all 0.2s ease"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(0, 255, 136, 0.15)";
+              e.currentTarget.style.borderColor = "rgba(0, 255, 136, 0.4)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(0, 255, 136, 0.08)";
+              e.currentTarget.style.borderColor = "rgba(0, 255, 136, 0.2)";
+            }}
+          >
+            📜 Duel Logs
+          </button>
+          <button
+            onClick={() => setShowCustomize(true)}
+            style={{
+              background: "rgba(255, 0, 200, 0.08)",
+              border: "1px solid rgba(255, 0, 200, 0.2)",
+              color: "#f472b6",
+              padding: "12px 14px",
+              borderRadius: 14,
+              fontSize: 13,
+              fontWeight: "bold",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              transition: "all 0.2s ease"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(255, 0, 200, 0.15)";
+              e.currentTarget.style.borderColor = "rgba(255, 0, 200, 0.4)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(255, 0, 200, 0.08)";
+              e.currentTarget.style.borderColor = "rgba(255, 0, 200, 0.2)";
+            }}
+          >
+            🎨 Style Shop
+          </button>
         </div>
-
-        <button
-          onClick={() => setShowCustomize(true)}
-          style={{
-            width: "100%",
-            background: "rgba(255, 0, 200, 0.08)",
-            border: "1px solid rgba(255, 0, 200, 0.25)",
-            color: "#f472b6",
-            padding: "12px 14px",
-            borderRadius: 14,
-            fontSize: 13,
-            fontWeight: "bold",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-            transition: "all 0.2s ease",
-            marginTop: 12
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(255, 0, 200, 0.15)";
-            e.currentTarget.style.borderColor = "rgba(255, 0, 200, 0.5)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(255, 0, 200, 0.08)";
-            e.currentTarget.style.borderColor = "rgba(255, 0, 200, 0.25)";
-          }}
-        >
-          🎨 Card Customization (Shop)
-        </button>
 
         <CustomizationsModal isOpen={showCustomize} onClose={() => setShowCustomize(false)} />
       </div>

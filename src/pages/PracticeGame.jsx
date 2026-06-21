@@ -15,7 +15,8 @@ import {
   playQuickChatSound
 } from "../utils/audio";
 import { getHandValue, getCardValue, refillDrawPile } from "../utils/onlineGame";
-import { updateLocalStats } from "../utils/playerStats";
+import { updateLocalStats, saveMatchToDatabase, getCareerPoints } from "../utils/playerStats";
+import { db } from "../firebase";
 
 const panelStyle = {
   padding: 18,
@@ -101,6 +102,12 @@ export default function PracticeGame({ setScreen }) {
   const [boardTheme, setBoardTheme] = useState(() => {
     return localStorage.getItem("frazons-board-theme") || "cyber-violet";
   });
+
+  useEffect(() => {
+    localStorage.setItem("frazons-board-theme", boardTheme);
+  }, [boardTheme]);
+
+  const xp = getCareerPoints();
   const [declarationThreshold, setDeclarationThreshold] = useState(20);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 600);
@@ -419,6 +426,24 @@ export default function PracticeGame({ setScreen }) {
       if (winnerBot.key === "player") {
         updateLocalStats({ offlineMatchesWon: 1 });
       }
+
+      // Log match summary to Firestore matches database collection
+      const pKey = playerName.toLowerCase().replace(/\s+/g, "_") || "player";
+      const matchData = {
+        type: "practice",
+        winnerName: winnerBot.name,
+        winnerKey: winnerBot.key,
+        players: bots.map(b => ({
+          name: b.name,
+          key: b.key,
+          avatar: b.avatar,
+          totalScore: nextTotals[b.key]
+        })),
+        playersKeys: [pKey, "bot1", "bot2"],
+        totals: nextTotals,
+        roundCount: roundNumber
+      };
+      saveMatchToDatabase(db, matchData);
     } else {
       setStatus("round-finished");
     }
@@ -810,7 +835,18 @@ export default function PracticeGame({ setScreen }) {
               </div>
               <select
                 value={boardTheme}
-                onChange={(e) => setBoardTheme(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const requiredPoints = {
+                    "cyber-violet": 0,
+                    "classic-green": 300,
+                    "neon-blue": 600,
+                    "dark-carbon": 900
+                  }[val] || 0;
+                  if (xp >= requiredPoints) {
+                    setBoardTheme(val);
+                  }
+                }}
                 style={{
                   background: "rgba(255,255,255,0.06)",
                   border: "1px solid rgba(255,255,255,0.12)",
@@ -824,9 +860,9 @@ export default function PracticeGame({ setScreen }) {
                 }}
               >
                 <option value="cyber-violet" style={{ background: "#13031a", color: "white" }}>🌌 Cyber Violet</option>
-                <option value="classic-green" style={{ background: "#05180d", color: "white" }}>🟢 Classic Green</option>
-                <option value="neon-blue" style={{ background: "#020c19", color: "white" }}>🔵 Neon Blue</option>
-                <option value="dark-carbon" style={{ background: "#0f171e", color: "white" }}>⚫ Dark Carbon</option>
+                <option value="classic-green" disabled={xp < 300} style={{ background: "#05180d", color: "white" }}>🟢 Green Felt {xp < 300 && "🔒"}</option>
+                <option value="neon-blue" disabled={xp < 600} style={{ background: "#020c19", color: "white" }}>🔵 Neon Grid {xp < 600 && "🔒"}</option>
+                <option value="dark-carbon" disabled={xp < 900} style={{ background: "#0f171e", color: "white" }}>⚫ Carbon Fiber {xp < 900 && "🔒"}</option>
               </select>
               <select
                 value={declarationThreshold}

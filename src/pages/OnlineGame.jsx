@@ -13,7 +13,7 @@ import {
   playHeartbeatSound,
   playQuickChatSound
 } from "../utils/audio";
-import { updateLocalStats } from "../utils/playerStats";
+import { updateLocalStats, saveMatchToDatabase, getCareerPoints } from "../utils/playerStats";
 import TutorialOverlay from "../components/TutorialOverlay";
 import {
   createRoundState,
@@ -125,6 +125,8 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
   useEffect(() => {
     localStorage.setItem("frazons-board-theme", boardTheme);
   }, [boardTheme]);
+
+  const xp = getCareerPoints();
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 600);
   useEffect(() => {
@@ -257,10 +259,33 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
       if (matchWinnerKey === playerName) {
         updateLocalStats({ onlineMatchesWon: 1 });
       }
+
+      // Only the host logs the finished match to the database to prevent duplicate writes!
+      if (isHost) {
+        const playersList = room?.players || [];
+        const matchData = {
+          type: "online",
+          roomCode: room.roomCode || "",
+          winnerName: room.matchWinner || room.winner || "",
+          winnerKey: matchWinnerKey,
+          players: playersList.map(p => {
+            const key = playerKey(p.name);
+            return {
+              name: p.name,
+              key: key,
+              totalScore: room.totals?.[key] || 0
+            };
+          }),
+          playersKeys: playersList.map(p => playerKey(p.name)),
+          totals: room.totals || {},
+          roundCount: room.roundNumber || 1
+        };
+        saveMatchToDatabase(db, matchData);
+      }
     } else if (room?.status !== "finished") {
       matchFinishedTracked.current = false;
     }
-  }, [room?.status, room?.matchWinner, room?.winner, playerName]);
+  }, [room?.status, room?.matchWinner, room?.winner, playerName, isHost, room?.players, room?.roomCode, room?.totals, room?.roundNumber]);
 
   useEffect(() => {
     if (room?.roundResult && room.roundResult !== lastLoggedResult.current) {
@@ -894,7 +919,18 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
               </div>
               <select
                 value={boardTheme}
-                onChange={(e) => setBoardTheme(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const requiredPoints = {
+                    "cyber-violet": 0,
+                    "classic-green": 300,
+                    "neon-blue": 600,
+                    "dark-carbon": 900
+                  }[val] || 0;
+                  if (xp >= requiredPoints) {
+                    setBoardTheme(val);
+                  }
+                }}
                 style={{
                   background: "rgba(255,255,255,0.06)",
                   border: "1px solid rgba(255,255,255,0.12)",
@@ -908,9 +944,9 @@ export default function OnlineGame({ room, setRoom, setScreen }) {
                 }}
               >
                 <option value="cyber-violet" style={{ background: "#13031a", color: "white" }}>🌌 Cyber Violet</option>
-                <option value="classic-green" style={{ background: "#05180d", color: "white" }}>🟢 Classic Green</option>
-                <option value="neon-blue" style={{ background: "#020c19", color: "white" }}>🔵 Neon Blue</option>
-                <option value="dark-carbon" style={{ background: "#0f171e", color: "white" }}>⚫ Dark Carbon</option>
+                <option value="classic-green" disabled={xp < 300} style={{ background: "#05180d", color: "white" }}>🟢 Green Felt {xp < 300 && "🔒"}</option>
+                <option value="neon-blue" disabled={xp < 600} style={{ background: "#020c19", color: "white" }}>🔵 Neon Grid {xp < 600 && "🔒"}</option>
+                <option value="dark-carbon" disabled={xp < 900} style={{ background: "#0f171e", color: "white" }}>⚫ Carbon Fiber {xp < 900 && "🔒"}</option>
               </select>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
