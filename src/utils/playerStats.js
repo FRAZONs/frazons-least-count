@@ -460,6 +460,7 @@ export async function createPlayerProfile(db, uid, nickname, initialStats = {}) 
     const profile = {
       name: nickname,
       uid: uid,
+      avatar: initialStats.avatar || "👾",
       gamesPlayed: Number(initialStats.gamesPlayed) || 0,
       wins: Number(initialStats.wins) || 0,
       totalScore: Number(initialStats.totalScore) || 0,

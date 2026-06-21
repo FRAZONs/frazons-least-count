@@ -37,6 +37,7 @@ const btnStyle = (bg, textColor = "white") => ({
 
 export default function NicknameSelection({ uid, onComplete }) {
   const [nickname, setNickname] = useState("");
+  const [selectedAvatar, setSelectedAvatar] = useState("👾");
   const [loading, setLoading] = useState(false);
   const { error: showError, success } = useToast();
 
@@ -81,7 +82,9 @@ export default function NicknameSelection({ uid, onComplete }) {
       }
 
       // 3. Create player profile document
-      const profile = await createPlayerProfile(db, uid, nickTrim, initialStats);
+      const profile = await createPlayerProfile(db, uid, nickTrim, { ...initialStats, avatar: selectedAvatar });
+      localStorage.setItem("playerName", profile.name.toLowerCase().trim().replace(/\s+/g, "_"));
+      localStorage.setItem("frazons-player-avatar", profile.avatar || "👾");
       success("Gamer ID created successfully!");
       onComplete(profile);
     } catch (err) {
@@ -146,6 +149,36 @@ export default function NicknameSelection({ uid, onComplete }) {
               disabled={loading}
               required
             />
+          </div>
+
+          {/* Avatar Selector */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ fontSize: 12, fontWeight: "bold", color: "#aaa" }}>CHOOSE AVATAR</label>
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 16, background: "rgba(255,255,255,0.03)", padding: 12, borderRadius: 14, border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ fontSize: 44, filter: "drop-shadow(0 0 8px rgba(0,229,255,0.45))", minWidth: 60, textAlign: "center" }}>
+                {selectedAvatar}
+              </div>
+              <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
+                {["👾", "🤖", "😈", "🦊", "⚔️", "👑", "💀", "🛸", "🔋", "🌌"].map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => setSelectedAvatar(a)}
+                    style={{
+                      fontSize: 18,
+                      background: selectedAvatar === a ? "rgba(0, 229, 255, 0.15)" : "transparent",
+                      border: selectedAvatar === a ? "1px solid #00e5ff" : "1px solid transparent",
+                      borderRadius: 8,
+                      padding: 6,
+                      cursor: "pointer",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <button

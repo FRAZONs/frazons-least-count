@@ -46,6 +46,22 @@ export default function App() {
     }
   });
 
+  const updateAvatar = async (newAvatar) => {
+    try {
+      const rawName = localStorage.getItem("playerName");
+      if (rawName && user) {
+        const pKey = rawName.toLowerCase().trim();
+        const { doc, updateDoc } = await import("firebase/firestore");
+        const playerRef = doc(db, "players", pKey);
+        await updateDoc(playerRef, { avatar: newAvatar });
+      }
+      localStorage.setItem("frazons-player-avatar", newAvatar);
+      setUserProfile(prev => prev ? { ...prev, avatar: newAvatar } : { avatar: newAvatar });
+    } catch (e) {
+      console.error("Failed to update avatar in Firestore:", e);
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
@@ -56,6 +72,7 @@ export default function App() {
             setUserProfile(profile);
             const pKey = profile.name.toLowerCase().trim().replace(/\s+/g, "_");
             localStorage.setItem("playerName", pKey);
+            localStorage.setItem("frazons-player-avatar", profile.avatar || "👾");
             localStorage.setItem("frazons-ranked-points", (profile.rankedPoints || 0).toString());
             
             localStorage.setItem("frazons-career-stats", JSON.stringify({
@@ -318,6 +335,45 @@ export default function App() {
               />
             </div>
 
+            {user && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, background: "rgba(255, 255, 255, 0.03)", padding: 16, borderRadius: 16, border: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ fontSize: 40, filter: "drop-shadow(0 0 8px rgba(0, 229, 255, 0.3))" }}>
+                    {userProfile?.avatar || localStorage.getItem("frazons-player-avatar") || "👾"}
+                  </span>
+                  <div>
+                    <div style={{ fontWeight: "bold", fontSize: 15, color: "#00e5ff" }}>
+                      {userProfile?.name || localStorage.getItem("playerName")?.split("_")?.[0] || "Duelist"}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#aaa" }}>Gamer Profile</div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: "bold", color: "#888", textAlign: "left" }}>CHANGE AVATAR</span>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
+                    {["👾", "🤖", "😈", "🦊", "⚔️", "👑", "💀", "🛸", "🔋", "🌌"].map((a) => (
+                      <button
+                        key={a}
+                        onClick={() => updateAvatar(a)}
+                        style={{
+                          fontSize: 18,
+                          background: (userProfile?.avatar || localStorage.getItem("frazons-player-avatar") || "👾") === a ? "rgba(0, 229, 255, 0.15)" : "transparent",
+                          border: (userProfile?.avatar || localStorage.getItem("frazons-player-avatar") || "👾") === a ? "1px solid #00e5ff" : "1px solid transparent",
+                          borderRadius: 8,
+                          padding: 4,
+                          cursor: "pointer",
+                          transition: "all 0.2s ease"
+                        }}
+                      >
+                        {a}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {(user || isGuest) && (
               <button
                 onClick={async () => {
@@ -328,6 +384,7 @@ export default function App() {
                     setIsGuest(false);
                     localStorage.removeItem("frazons-is-guest");
                     localStorage.removeItem("playerName");
+                    localStorage.removeItem("frazons-player-avatar");
                     localStorage.removeItem("frazons-ranked-points");
                     localStorage.removeItem("frazons-career-stats");
                     localStorage.removeItem("frazons-quest-progress");

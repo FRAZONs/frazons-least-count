@@ -91,7 +91,9 @@ export default function Home({ setScreen }) {
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 24 }}>👤</span>
+              <span style={{ fontSize: 32, filter: "drop-shadow(0 0 8px rgba(0, 229, 255, 0.35))" }}>
+                {localStorage.getItem("frazons-player-avatar") || "👾"}
+              </span>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <div style={{ fontWeight: "bold", fontSize: 15 }}>{localStorage.getItem("playerName")?.split("-")?.[0] || "Guest Player"}</div>
